@@ -556,7 +556,7 @@ function renderHistorial(data) {
     <th>Fecha</th><th>Día</th><th>Prot.</th><th>Carb.</th><th>Grasas</th>
     <th>Kcal</th><th>Peso</th><th>Sueño</th><th>Entreno</th><th>Pasos</th><th>Balance</th>
   </tr></thead><tbody>`;
-  dataOnly.slice().reverse().forEach(r => {
+  dataOnly.slice(-30).reverse().forEach(r => {
     const fecha = excelDateToStr(r[0]);
     const bal = r[12] != null ? Math.round(+r[12]) : null;
     const badgeBal = bal != null
