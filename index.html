@@ -501,8 +501,10 @@ function excelDateToStr(serial) {
 // ── LOAD ALL ─────────────────────────────────────────────────────────────────
 async function loadAll() {
   // fecha-hoy will be set after loadDieta reads from sheet
-  try { await Promise.all([loadDieta(), loadContornos(), loadPerfil()]); }
-  catch(e) { toast('Error al cargar datos. Verifica los nombres de las pestañas.', 'err'); console.error(e); }
+  // Load each section independently so one failure doesn't block the others
+  try { await loadDieta(); } catch(e) { console.error('loadDieta error:', e); toast('Error al cargar dieta: ' + (e?.result?.error?.message || e?.message || ''), 'err'); }
+  try { await loadContornos(); } catch(e) { console.error('loadContornos error:', e); }
+  try { await loadPerfil(); } catch(e) { console.error('loadPerfil error:', e); }
 }
 
 // ── DIETA ────────────────────────────────────────────────────────────────────
