@@ -242,7 +242,11 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
     <!-- HISTORIAL -->
     <div class="section" id="tab-historial">
       <div class="section-title">Historial</div>
-      <div class="section-sub">Últimas semanas registradas</div>
+      <div class="section-sub">Evolución del peso y registro diario</div>
+      <div class="card">
+        <div class="card-title">Evolución del peso corporal</div>
+        <div style="position:relative;height:260px"><canvas id="peso-chart"></canvas></div>
+      </div>
       <div class="card"><div id="historial-content"><div class="loading-state"><div class="spinner"></div> Cargando datos...</div></div></div>
     </div>
 
@@ -426,6 +430,7 @@ const ZONES = [
 ];
 const activeZones = new Set(ZONES.map(z => z.key)); // all visible by default
 let contornosChart = null;
+let pesoChart = null;
 let contornosData  = [];
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
@@ -490,7 +495,7 @@ function excelDateToStr(serial) {
 
 // ── LOAD ALL ─────────────────────────────────────────────────────────────────
 async function loadAll() {
-  document.getElementById('fecha-hoy').textContent = todayStr();
+  // fecha-hoy will be set after loadDieta reads from sheet
   try { await Promise.all([loadDieta(), loadContornos(), loadPerfil()]); }
   catch(e) { toast('Error al cargar datos. Verifica los nombres de las pestañas.', 'err'); console.error(e); }
 }
@@ -500,8 +505,21 @@ let dietaRows = [];
 async function loadDieta() {
   const data = await sheetsGet(`'${TAB_DIETA}'!A4:M420`);
   dietaRows = data;
-  const today = todayStr();
-  const tr = data.find(r => excelDateToStr(r[0]) === today || String(r[0]) === today);
+  // Find today's row using day-of-week and week number relative to start
+  const now = new Date();
+  const startDate = new Date(2026, 3, 28); // April 28 2026
+  const diffDays = Math.floor((now - startDate) / (24*3600*1000));
+  const weekIdx = Math.floor(diffDays / 7); // 0-based
+  const dayIdx  = diffDays % 7;             // 0=Mon ... 6=Sun
+  // Each week = 8 rows (7 days + 1 summary), data starts at index 0
+  const todayRowIdx = weekIdx * 8 + dayIdx;
+  const tr = todayRowIdx >= 0 && todayRowIdx < data.length ? data[todayRowIdx] : null;
+  // Set today's date from sheet column A
+  if (tr && tr[0]) {
+    document.getElementById('fecha-hoy').textContent = excelDateToStr(tr[0]) !== '' ? excelDateToStr(tr[0]) : todayStr();
+  } else {
+    document.getElementById('fecha-hoy').textContent = todayStr();
+  }
   if (tr) {
     document.getElementById('f-prot').value   = tr[3]  || '';
     document.getElementById('f-carb').value   = tr[4]  || '';
@@ -548,16 +566,72 @@ function calcKcal() {
   updateStats(p, c, f, k, document.getElementById('f-peso').value);
 }
 
+function renderPesoChart(data) {
+  const rows = data.filter(r => r[7] != null && r[7] !== '');
+  const labels = rows.map(r => excelDateToStr(r[0]) || ('S'+r[1]+' D'+(data.indexOf(r)%8+1)));
+  const values = rows.map(r => +r[7]);
+  const ctx = document.getElementById('peso-chart');
+  if (!ctx) return;
+  if (pesoChart) pesoChart.destroy();
+  pesoChart = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Peso (kg)',
+        data: values,
+        borderColor: '#c084fc',
+        backgroundColor: 'rgba(192,132,252,0.08)',
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointHoverRadius: 7,
+        pointBackgroundColor: '#c084fc',
+        pointBorderColor: '#c084fc',
+        tension: 0.4,
+        fill: true,
+        spanGaps: true,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#181c22',
+          borderColor: '#2e3540',
+          borderWidth: 1,
+          titleColor: '#e8ecf0',
+          bodyColor: '#c084fc',
+          titleFont: { family: 'DM Mono', size: 11 },
+          bodyFont: { family: 'DM Mono', size: 12, weight: 'bold' },
+          padding: 12,
+          callbacks: { label: ctx => ' ' + ctx.parsed.y.toFixed(1) + ' kg' }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#222830' },
+          ticks: { color: '#6b7585', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 12 }
+        },
+        y: {
+          grid: { color: '#222830' },
+          ticks: { color: '#6b7585', font: { family: 'DM Mono', size: 10 }, callback: v => v + ' kg' }
+        }
+      }
+    }
+  });
+}
+
 function renderHistorial(data) {
-  const cont = document.getElementById('historial-content');
-  const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+  renderPesoChart(data);
+  // Show rows with any data entered, most recent 30
   const dataOnly = data.filter(r => {
     if (!r[2] || r[2] === '') return false;
-    let d;
-    if (typeof r[0] === 'number') d = new Date((r[0]-25569)*86400*1000);
-    else if (typeof r[0] === 'string' && r[0].includes('/')) { const [dd,mm,yy]=r[0].split('/'); d=new Date(+yy,+mm-1,+dd); }
-    else return false;
-    return d <= todayDate;
+    return r[3] != null && r[3] !== '' || r[4] != null && r[4] !== '' ||
+           r[5] != null && r[5] !== '' || r[7] != null && r[7] !== '' ||
+           r[8] != null && r[8] !== '' || r[9] != null && r[9] !== '' ||
+           r[10] != null && r[10] !== '';
   }).slice(-30);
   if (!dataOnly.length) { cont.innerHTML = '<div class="empty-state"><span>📭</span><p>Aún no hay registros.</p></div>'; return; }
   let html = `<div class="table-wrap"><table><thead><tr>
@@ -594,12 +668,15 @@ async function guardarDiario() {
   const btn = document.getElementById('btn-guardar');
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
-    const today = todayStr();
-    let targetRow = -1;
-    dietaRows.forEach((r, i) => {
-      if (excelDateToStr(r[0]) === today || String(r[0]) === today) targetRow = i + 4;
-    });
-    if (targetRow === -1) { toast('No se encontró la fila de hoy.', 'err'); return; }
+    // Find today's row by week+day index
+    const nowG = new Date();
+    const startDateG = new Date(2026, 3, 28);
+    const diffDaysG = Math.floor((nowG - startDateG) / (24*3600*1000));
+    if (diffDaysG < 0) { toast('La fecha de inicio del tracker es el 28/04/2026.', 'err'); return; }
+    const weekIdxG = Math.floor(diffDaysG / 7);
+    const dayIdxG  = diffDaysG % 7;
+    const rowIdxG  = weekIdxG * 8 + dayIdxG; // index in data array
+    const targetRow = rowIdxG + 4; // +4 because sheet data starts at row 4
     const prot  = document.getElementById('f-prot').value;
     const carb  = document.getElementById('f-carb').value;
     const fat   = document.getElementById('f-fat').value;
@@ -626,9 +703,10 @@ async function loadContornos() {
   renderContornosHistorial(data);
   buildLegendPills();
 
-  const today = new Date();
-  const startOfYear = new Date(2026, 3, 28);
-  const weekNum = Math.max(1, Math.floor((today - startOfYear) / (7*24*3600*1000)) + 1);
+  const nowC = new Date();
+  const startC = new Date(2026, 3, 28);
+  const diffC = Math.floor((nowC - startC) / (24*3600*1000));
+  const weekNum = Math.max(1, Math.floor(diffC / 7) + 1);
   const wr = data.find(r => +r[1] === weekNum);
   if (wr) {
     document.getElementById('c-cuello').value  = wr[3]  || '';
@@ -792,9 +870,10 @@ function renderContornosHistorial(data) {
 
 async function guardarContornos() {
   try {
-    const today = new Date();
-    const startOfYear = new Date(2026, 3, 28);
-    const weekNum = Math.max(1, Math.floor((today - startOfYear) / (7*24*3600*1000)) + 1);
+    const nowS = new Date();
+    const startS = new Date(2026, 3, 28);
+    const diffS = Math.floor((nowS - startS) / (24*3600*1000));
+    const weekNum = Math.max(1, Math.floor(diffS / 7) + 1);
     const sheetRow = weekNum + 3;
     const vals = [
       document.getElementById('c-cuello').value  || '',
@@ -832,7 +911,20 @@ async function loadPerfil() {
       }
     }
     if (data[3]) document.getElementById('p-altura').value = data[3][0] || '';
-    if (data[4]) document.getElementById('p-peso').value   = data[4][0] || '';
+    // Peso: usar media de registros diarios si hay datos, si no el valor manual
+    const pesoManual = data[4] ? data[4][0] : null;
+    try {
+      const pesoData = await sheetsGet(`'${TAB_DIETA}'!H4:H420`);
+      const pesoVals = pesoData.flat().filter(v => v !== '' && v != null && !isNaN(+v)).map(v => +v);
+      if (pesoVals.length > 0) {
+        const avg = (pesoVals.reduce((a,b) => a+b, 0) / pesoVals.length).toFixed(1);
+        document.getElementById('p-peso').value = avg;
+      } else if (pesoManual) {
+        document.getElementById('p-peso').value = pesoManual;
+      }
+    } catch(e) {
+      if (pesoManual) document.getElementById('p-peso').value = pesoManual;
+    }
     const actData = await sheetsGet(`'${TAB_PERFIL}'!B20:B20`);
     if (actData[0] && actData[0][0]) {
       const factor = parseFloat(actData[0][0]);
@@ -890,6 +982,9 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
     if (tab.dataset.tab === 'contornos' && contornosChart) {
       setTimeout(() => contornosChart.resize(), 50);
+    }
+    if (tab.dataset.tab === 'historial' && pesoChart) {
+      setTimeout(() => pesoChart.resize(), 50);
     }
   });
 });
