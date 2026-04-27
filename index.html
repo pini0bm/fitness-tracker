@@ -245,7 +245,11 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
       <div class="section-sub">Evolución del peso y registro diario</div>
       <div class="card">
         <div class="card-title">Evolución del peso corporal</div>
-        <div style="position:relative;height:260px"><canvas id="peso-chart"></canvas></div>
+        <div style="position:relative;height:240px"><canvas id="peso-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Evolución del sueño</div>
+        <div style="position:relative;height:200px"><canvas id="sueno-chart"></canvas></div>
       </div>
       <div class="card"><div id="historial-content"><div class="loading-state"><div class="spinner"></div> Cargando datos...</div></div></div>
     </div>
@@ -431,6 +435,7 @@ const ZONES = [
 const activeZones = new Set(ZONES.map(z => z.key)); // all visible by default
 let contornosChart = null;
 let pesoChart = null;
+let suenoChart = null;
 let contornosData  = [];
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
@@ -507,7 +512,7 @@ async function loadDieta() {
   dietaRows = data;
   // Find today's row using day-of-week and week number relative to start
   const now = new Date();
-  const startDate = new Date(2026, 3, 28); // April 28 2026
+  const startDate = new Date(2026, 3, 27); // April 28 2026
   const diffDays = Math.floor((now - startDate) / (24*3600*1000));
   const weekIdx = Math.floor(diffDays / 7); // 0-based
   const dayIdx  = diffDays % 7;             // 0=Mon ... 6=Sun
@@ -533,6 +538,8 @@ async function loadDieta() {
     calcKcal();
   }
   renderHistorial(data);
+  renderPesoChart(data);
+  renderSuenoChart(data);
 }
 
 function updateStats(prot, carb, fat, kcal, peso) {
@@ -623,6 +630,56 @@ function renderPesoChart(data) {
   });
 }
 
+function renderSuenoChart(data) {
+  const rows = data.filter(r => r[8] != null && r[8] !== '');
+  const labels = rows.map(r => excelDateToStr(r[0]) || ('S'+r[1]));
+  const values = rows.map(r => +r[8]);
+  const ctx = document.getElementById('sueno-chart');
+  if (!ctx) return;
+  if (suenoChart) suenoChart.destroy();
+  suenoChart = new Chart(ctx.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Sueño (h)',
+        data: values,
+        backgroundColor: values.map(v => v >= 7 ? 'rgba(124,77,255,0.7)' : v >= 6 ? 'rgba(124,77,255,0.4)' : 'rgba(255,107,107,0.5)'),
+        borderColor: values.map(v => v >= 7 ? '#7c4dff' : v >= 6 ? '#9c7dff' : '#ff6b6b'),
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#181c22',
+          borderColor: '#2e3540',
+          borderWidth: 1,
+          titleColor: '#e8ecf0',
+          bodyColor: '#7c4dff',
+          titleFont: { family: 'DM Mono', size: 11 },
+          bodyFont: { family: 'DM Mono', size: 12, weight: 'bold' },
+          padding: 12,
+          callbacks: { label: ctx => ' ' + ctx.parsed.y.toFixed(1) + ' horas' }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#222830' }, ticks: { color: '#6b7585', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 12 } },
+        y: {
+          grid: { color: '#222830' },
+          ticks: { color: '#6b7585', font: { family: 'DM Mono', size: 10 }, callback: v => v + 'h' },
+          min: 0, max: 12,
+          afterDataLimits: scale => { scale.max = Math.max(scale.max, 10); }
+        }
+      }
+    }
+  });
+}
+
 function renderHistorial(data) {
   renderPesoChart(data);
   // Show rows with any data entered, most recent 30
@@ -670,9 +727,9 @@ async function guardarDiario() {
   try {
     // Find today's row by week+day index
     const nowG = new Date();
-    const startDateG = new Date(2026, 3, 28);
+    const startDateG = new Date(2026, 3, 27);
     const diffDaysG = Math.floor((nowG - startDateG) / (24*3600*1000));
-    if (diffDaysG < 0) { toast('La fecha de inicio del tracker es el 28/04/2026.', 'err'); return; }
+    if (diffDaysG < 0) { toast('La fecha de inicio del tracker es el 27/04/2026.', 'err'); return; }
     const weekIdxG = Math.floor(diffDaysG / 7);
     const dayIdxG  = diffDaysG % 7;
     const rowIdxG  = weekIdxG * 8 + dayIdxG; // index in data array
@@ -704,7 +761,7 @@ async function loadContornos() {
   buildLegendPills();
 
   const nowC = new Date();
-  const startC = new Date(2026, 3, 28);
+  const startC = new Date(2026, 3, 27);
   const diffC = Math.floor((nowC - startC) / (24*3600*1000));
   const weekNum = Math.max(1, Math.floor(diffC / 7) + 1);
   const wr = data.find(r => +r[1] === weekNum);
@@ -871,7 +928,7 @@ function renderContornosHistorial(data) {
 async function guardarContornos() {
   try {
     const nowS = new Date();
-    const startS = new Date(2026, 3, 28);
+    const startS = new Date(2026, 3, 27);
     const diffS = Math.floor((nowS - startS) / (24*3600*1000));
     const weekNum = Math.max(1, Math.floor(diffS / 7) + 1);
     const sheetRow = weekNum + 3;
@@ -983,8 +1040,8 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (tab.dataset.tab === 'contornos' && contornosChart) {
       setTimeout(() => contornosChart.resize(), 50);
     }
-    if (tab.dataset.tab === 'historial' && pesoChart) {
-      setTimeout(() => pesoChart.resize(), 50);
+    if (tab.dataset.tab === 'historial') {
+      setTimeout(() => { if(pesoChart) pesoChart.resize(); if(suenoChart) suenoChart.resize(); }, 50);
     }
   });
 });
