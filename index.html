@@ -550,7 +550,15 @@ function calcKcal() {
 
 function renderHistorial(data) {
   const cont = document.getElementById('historial-content');
-  const dataOnly = data.filter(r => r[2] && r[2] !== '').slice(-30);
+  const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+  const dataOnly = data.filter(r => {
+    if (!r[2] || r[2] === '') return false;
+    let d;
+    if (typeof r[0] === 'number') d = new Date((r[0]-25569)*86400*1000);
+    else if (typeof r[0] === 'string' && r[0].includes('/')) { const [dd,mm,yy]=r[0].split('/'); d=new Date(+yy,+mm-1,+dd); }
+    else return false;
+    return d <= todayDate;
+  }).slice(-30);
   if (!dataOnly.length) { cont.innerHTML = '<div class="empty-state"><span>📭</span><p>Aún no hay registros.</p></div>'; return; }
   let html = `<div class="table-wrap"><table><thead><tr>
     <th>Fecha</th><th>Día</th><th>Prot.</th><th>Carb.</th><th>Grasas</th>
