@@ -684,6 +684,7 @@ function renderSuenoChart(data) {
 
 function renderHistorial(data) {
   renderPesoChart(data);
+  const cont = document.getElementById('historial-content');
   // Show rows with any data entered, most recent 30
   const dataOnly = data.filter(r => {
     if (!r[2] || r[2] === '') return false;
