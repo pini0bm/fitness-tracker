@@ -251,6 +251,10 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
         <div class="card-title">Evolución del sueño</div>
         <div style="position:relative;height:200px"><canvas id="sueno-chart"></canvas></div>
       </div>
+      <div class="card">
+        <div class="card-title">Evolución de los pasos diarios</div>
+        <div style="position:relative;height:200px"><canvas id="pasos-chart"></canvas></div>
+      </div>
       <div class="card"><div id="historial-content"><div class="loading-state"><div class="spinner"></div> Cargando datos...</div></div></div>
     </div>
 
@@ -303,15 +307,15 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
                 <ellipse class="zone-shape" cx="118" cy="105" rx="11" ry="20"/>
                 <text class="zone-label" x="80" y="108">BÍCEPS</text>
               </g>
-              <!-- ABDOMEN -->
-              <g class="body-zone" data-zone="abdomen" onclick="toggleZone('abdomen')">
-                <rect class="zone-shape" x="58" y="112" width="44" height="30" rx="6"/>
-                <text class="zone-label" x="80" y="131">ABDOMEN</text>
-              </g>
               <!-- CINTURA -->
               <g class="body-zone" data-zone="cintura" onclick="toggleZone('cintura')">
-                <rect class="zone-shape" x="61" y="144" width="38" height="22" rx="6"/>
-                <text class="zone-label" x="80" y="159">CINTURA</text>
+                <rect class="zone-shape" x="61" y="112" width="38" height="22" rx="6"/>
+                <text class="zone-label" x="80" y="127">CINTURA</text>
+              </g>
+              <!-- ABDOMEN -->
+              <g class="body-zone" data-zone="abdomen" onclick="toggleZone('abdomen')">
+                <rect class="zone-shape" x="58" y="136" width="44" height="30" rx="6"/>
+                <text class="zone-label" x="80" y="155">ABDOMEN</text>
               </g>
               <!-- GLUTEO -->
               <g class="body-zone" data-zone="gluteo" onclick="toggleZone('gluteo')">
@@ -398,6 +402,23 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
             </div>
           </div>
           <div class="card" style="margin-bottom:0">
+            <div class="card-title">Ratio Cintura / Cadera</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div style="text-align:center;flex:1">
+                <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Ratio</div>
+                <div id="ratio-val" style="font-family:'Syne',sans-serif;font-weight:800;font-size:2.2rem;color:#c2185b;letter-spacing:-0.03em">—</div>
+              </div>
+              <div style="flex:2;padding-left:16px">
+                <div id="ratio-badge" style="font-size:12px;font-weight:600;margin-bottom:8px">—</div>
+                <div style="font-size:11px;color:var(--muted);line-height:1.7">
+                  <span style="color:var(--accent2)">H</span> &lt;0.90 bajo · 0.90–0.99 moderado · ≥1.0 alto<br>
+                  <span style="color:var(--accent2)">M</span> &lt;0.80 bajo · 0.80–0.84 moderado · ≥0.85 alto
+                </div>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--muted);font-style:italic">Calculado con tus últimas medidas de cintura y glúteo</div>
+          </div>
+          <div class="card" style="margin-bottom:0">
             <div class="card-title">Sobre la TMB</div>
             <p style="font-size:13px;color:var(--muted);line-height:1.8">La <strong style="color:var(--text)">TMB</strong> es la energía que tu cuerpo necesita en reposo absoluto.<br><br>El <strong style="color:var(--text)">TDEE</strong> incluye tu actividad diaria.<br><br>El balance calórico usa tu TMB como referencia. Es una <strong style="color:var(--text)">estimación</strong> — cada cuerpo es diferente.</p>
           </div>
@@ -420,6 +441,13 @@ const TAB_PERFIL    = 'Perfil';
 
 let tokenClient, accessToken;
 
+// Parse number accepting both . and , as decimal separator
+function parseNum(val) {
+  if (val === '' || val == null) return '';
+  const n = parseFloat(String(val).replace(',', '.'));
+  return isNaN(n) ? '' : n;
+}
+
 // ── ZONES CONFIG ─────────────────────────────────────────────────────────────
 const ZONES = [
   { key:'cuello',  label:'Cuello',  color:'#E91E63', col:3  },
@@ -436,6 +464,7 @@ const activeZones = new Set(ZONES.map(z => z.key)); // all visible by default
 let contornosChart = null;
 let pesoChart = null;
 let suenoChart = null;
+let pasosChart = null;
 let contornosData  = [];
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
@@ -542,6 +571,7 @@ async function loadDieta() {
   renderHistorial(data);
   renderPesoChart(data);
   renderSuenoChart(data);
+  renderPasosChart(data);
 }
 
 function updateStats(prot, carb, fat, kcal, peso) {
@@ -682,6 +712,62 @@ function renderSuenoChart(data) {
   });
 }
 
+function renderPasosChart(data) {
+  const rows = data.filter(r => r[10] != null && r[10] !== '');
+  const labels = rows.map(r => excelDateToStr(r[0]) || ('S'+r[1]));
+  const values = rows.map(r => +r[10]);
+  const ctx = document.getElementById('pasos-chart');
+  if (!ctx) return;
+  if (pasosChart) pasosChart.destroy();
+  pasosChart = new Chart(ctx.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Pasos',
+        data: values,
+        backgroundColor: values.map(v => v >= 10000 ? 'rgba(0,137,123,0.7)' : v >= 7500 ? 'rgba(0,137,123,0.4)' : 'rgba(107,117,133,0.4)'),
+        borderColor:     values.map(v => v >= 10000 ? '#00897b' : v >= 7500 ? '#00bfa5' : '#6b7585'),
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#181c22',
+          borderColor: '#2e3540',
+          borderWidth: 1,
+          titleColor: '#e8ecf0',
+          bodyColor: '#00897b',
+          titleFont: { family: 'DM Mono', size: 11 },
+          bodyFont: { family: 'DM Mono', size: 12, weight: 'bold' },
+          padding: 12,
+          callbacks: { label: ctx => ' ' + ctx.parsed.y.toLocaleString() + ' pasos' }
+        },
+        annotation: {
+          annotations: {
+            goal: {
+              type: 'line',
+              yMin: 10000, yMax: 10000,
+              borderColor: 'rgba(0,137,123,0.4)',
+              borderWidth: 1,
+              borderDash: [4, 4],
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#222830' }, ticks: { color: '#6b7585', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 12 } },
+        y: { grid: { color: '#222830' }, ticks: { color: '#6b7585', font: { family: 'DM Mono', size: 10 }, callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v }, min: 0 }
+      }
+    }
+  });
+}
+
 function renderHistorial(data) {
   renderPesoChart(data);
   const cont = document.getElementById('historial-content');
@@ -745,9 +831,11 @@ async function guardarDiario() {
     const ent   = document.getElementById('f-entreno').value;
     const pasos = document.getElementById('f-pasos').value;
     const notas = document.getElementById('f-notas').value;
-    const kcal  = (parseFloat(prot)||0)*4 + (parseFloat(carb)||0)*4 + (parseFloat(fat)||0)*9;
+    const pN = parseNum(prot), cN = parseNum(carb), fN = parseNum(fat);
+    const pesoN = parseNum(peso), suenoN = parseNum(sueno), pasosN = parseNum(pasos);
+    const kcal = (pN||0)*4 + (cN||0)*4 + (fN||0)*9;
     await sheetsUpdate(`'${TAB_DIETA}'!D${targetRow}:L${targetRow}`, [[
-      prot||'', carb||'', fat||'', kcal||'', peso||'', sueno||'', ent||'', pasos||'', notas||''
+      pN, cN, fN, kcal||'', pesoN, suenoN, ent||'', pasosN, notas||''
     ]]);
     toast('¡Guardado correctamente! ✓', 'ok');
     calcKcal(); await loadDieta();
@@ -768,6 +856,31 @@ async function loadContornos() {
   const diffC = Math.floor((nowC - startC) / (24*3600*1000));
   const weekNum = Math.max(1, Math.floor(diffC / 7) + 1);
   const wr = data.find(r => +r[1] === weekNum);
+
+  // Calculate ratio cintura/cadera from most recent entry with both values
+  const withRatio = data.filter(r => r[8] != null && r[8] !== '' && r[9] != null && r[9] !== '');
+  if (withRatio.length > 0) {
+    const last = withRatio[withRatio.length - 1];
+    const cintura = +last[8];
+    const cadera  = +last[9];
+    const ratio   = cintura / cadera;
+    document.getElementById('ratio-val').textContent = ratio.toFixed(2);
+    const sexo = document.getElementById('p-sexo')?.value || 'H';
+    let riesgo, color;
+    if (sexo === 'H') {
+      if (ratio < 0.90)      { riesgo = 'Bajo riesgo';      color = 'var(--accent2)'; }
+      else if (ratio < 1.0)  { riesgo = 'Riesgo moderado';  color = 'var(--fat)'; }
+      else                   { riesgo = 'Riesgo alto';       color = 'var(--warn)'; }
+    } else {
+      if (ratio < 0.80)      { riesgo = 'Bajo riesgo';      color = 'var(--accent2)'; }
+      else if (ratio < 0.85) { riesgo = 'Riesgo moderado';  color = 'var(--fat)'; }
+      else                   { riesgo = 'Riesgo alto';       color = 'var(--warn)'; }
+    }
+    const badge = document.getElementById('ratio-badge');
+    badge.textContent = riesgo;
+    badge.style.color = color;
+  }
+
   if (wr) {
     document.getElementById('c-cuello').value  = wr[3]  || '';
     document.getElementById('c-hombro').value  = wr[4]  || '';
@@ -936,15 +1049,15 @@ async function guardarContornos() {
     const weekNum = Math.max(1, Math.floor(diffS / 7) + 1);
     const sheetRow = weekNum + 3;
     const vals = [
-      document.getElementById('c-cuello').value  || '',
-      document.getElementById('c-hombro').value  || '',
-      document.getElementById('c-pecho').value   || '',
-      document.getElementById('c-biceps').value  || '',
-      document.getElementById('c-abdomen').value || '',
-      document.getElementById('c-cintura').value || '',
-      document.getElementById('c-gluteo').value  || '',
-      document.getElementById('c-muslo').value   || '',
-      document.getElementById('c-gemelo').value  || '',
+      parseNum(document.getElementById('c-cuello').value),
+      parseNum(document.getElementById('c-hombro').value),
+      parseNum(document.getElementById('c-pecho').value),
+      parseNum(document.getElementById('c-biceps').value),
+      parseNum(document.getElementById('c-abdomen').value),
+      parseNum(document.getElementById('c-cintura').value),
+      parseNum(document.getElementById('c-gluteo').value),
+      parseNum(document.getElementById('c-muslo').value),
+      parseNum(document.getElementById('c-gemelo').value),
       '',
       document.getElementById('c-fotos').value   || '',
     ];
@@ -1044,7 +1157,7 @@ document.querySelectorAll('.tab').forEach(tab => {
       setTimeout(() => contornosChart.resize(), 50);
     }
     if (tab.dataset.tab === 'historial') {
-      setTimeout(() => { if(pesoChart) pesoChart.resize(); if(suenoChart) suenoChart.resize(); }, 50);
+      setTimeout(() => { if(pesoChart) pesoChart.resize(); if(suenoChart) suenoChart.resize(); if(pasosChart) pasosChart.resize(); }, 50);
     }
   });
 });
@@ -1063,6 +1176,5 @@ function toast(msg, type='ok') {
 </script>
 <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
 <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-  <!-- v16 -->
 </body>
 </html>
