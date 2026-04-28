@@ -861,6 +861,44 @@ async function guardarDiario() {
 }
 
 // ── CONTORNOS + CHART ────────────────────────────────────────────────────────
+function calcBodyFat(contData) {
+  const altura = parseFloat(document.getElementById('p-altura')?.value) || 0;
+  const sexoBF = document.getElementById('p-sexo')?.value || 'H';
+  const src = contData || contornosData;
+  const withBF = src.filter(r => r[3] != null && r[3] !== '' && r[7] != null && r[7] !== '');
+  if (withBF.length === 0 || altura === 0) return;
+  const last    = withBF[withBF.length - 1];
+  const cuello  = +last[3];
+  const abdomen = +last[7];
+  const cintura = +last[8] || 0;
+  const gluteo  = +last[9] || 0;
+  let bf;
+  if (sexoBF === 'H') {
+    if (abdomen <= cuello) return;
+    bf = 495 / (1.0324 - 0.19077 * Math.log10(abdomen - cuello) + 0.15456 * Math.log10(altura)) - 450;
+  } else {
+    if ((cintura + gluteo) <= cuello) return;
+    bf = 495 / (1.29579 - 0.35004 * Math.log10(cintura + gluteo - cuello) + 0.22100 * Math.log10(altura)) - 450;
+  }
+  if (isNaN(bf) || bf <= 0 || bf >= 60) return;
+  document.getElementById('bf-val').textContent = bf.toFixed(1) + '%';
+  let bfLabel, bfColor;
+  if (sexoBF === 'H') {
+    if (bf < 8)       { bfLabel = 'Atlético';  bfColor = 'var(--accent2)'; }
+    else if (bf < 20) { bfLabel = 'Fitness';   bfColor = 'var(--accent)'; }
+    else if (bf < 25) { bfLabel = 'Aceptable'; bfColor = 'var(--fat)'; }
+    else              { bfLabel = 'Obesidad';  bfColor = 'var(--warn)'; }
+  } else {
+    if (bf < 15)      { bfLabel = 'Atlético';  bfColor = 'var(--accent2)'; }
+    else if (bf < 25) { bfLabel = 'Fitness';   bfColor = 'var(--accent)'; }
+    else if (bf < 32) { bfLabel = 'Aceptable'; bfColor = 'var(--fat)'; }
+    else              { bfLabel = 'Obesidad';  bfColor = 'var(--warn)'; }
+  }
+  const bfBadge = document.getElementById('bf-badge');
+  bfBadge.textContent = bfLabel;
+  bfBadge.style.color = bfColor;
+}
+
 async function loadContornos() {
   const data = await sheetsGet(`'${TAB_CONTORNOS}'!A4:N55`);
   contornosData = data;
@@ -898,41 +936,8 @@ async function loadContornos() {
     badge.style.color = color;
   }
 
-  // Body fat estimation (US Navy formula)
-  const altura = parseFloat(document.getElementById('p-altura')?.value) || 0;
-  const sexoBF = document.getElementById('p-sexo')?.value || 'H';
-  const withBF = data.filter(r => r[3] != null && r[3] !== '' && r[8] != null && r[8] !== '');
-  if (withBF.length > 0 && altura > 0) {
-    const last = withBF[withBF.length - 1];
-    const cuello  = +last[3];
-    const abdomen = +last[7];
-    const cintura = +last[8];
-    const gluteo  = +last[9];
-    let bf;
-    if (sexoBF === 'H') {
-      bf = 495 / (1.0324 - 0.19077 * Math.log10(abdomen - cuello) + 0.15456 * Math.log10(altura)) - 450;
-    } else {
-      bf = 495 / (1.29579 - 0.35004 * Math.log10(cintura + gluteo - cuello) + 0.22100 * Math.log10(altura)) - 450;
-    }
-    if (!isNaN(bf) && bf > 0 && bf < 60) {
-      document.getElementById('bf-val').textContent = bf.toFixed(1) + '%';
-      let bfLabel, bfColor;
-      if (sexoBF === 'H') {
-        if (bf < 8)       { bfLabel = 'Atlético';   bfColor = 'var(--accent2)'; }
-        else if (bf < 20) { bfLabel = 'Fitness';    bfColor = 'var(--accent)'; }
-        else if (bf < 25) { bfLabel = 'Aceptable';  bfColor = 'var(--fat)'; }
-        else              { bfLabel = 'Obesidad';   bfColor = 'var(--warn)'; }
-      } else {
-        if (bf < 15)      { bfLabel = 'Atlético';   bfColor = 'var(--accent2)'; }
-        else if (bf < 25) { bfLabel = 'Fitness';    bfColor = 'var(--accent)'; }
-        else if (bf < 32) { bfLabel = 'Aceptable';  bfColor = 'var(--fat)'; }
-        else              { bfLabel = 'Obesidad';   bfColor = 'var(--warn)'; }
-      }
-      const bfBadge = document.getElementById('bf-badge');
-      bfBadge.textContent = bfLabel;
-      bfBadge.style.color = bfColor;
-    }
-  }
+  // Body fat — calculate after profile is loaded
+  calcBodyFat(data);
 
   if (wr) {
     document.getElementById('c-cuello').value  = wr[3]  || '';
@@ -1160,6 +1165,7 @@ async function loadPerfil() {
     }
     calcTMB();
   } catch(e) { console.warn('No se pudo cargar el perfil:', e); calcTMB(); }
+  calcBodyFat();
 }
 
 function calcTMB() {
@@ -1215,6 +1221,7 @@ document.querySelectorAll('.tab').forEach(tab => {
   });
 });
 document.getElementById('p-fecha').addEventListener('change', calcTMB);
+document.getElementById('p-altura').addEventListener('change', () => { calcTMB(); calcBodyFat(); });
 document.getElementById('p-sexo').addEventListener('change', calcTMB);
 document.getElementById('p-altura').addEventListener('input', calcTMB);
 document.getElementById('p-peso').addEventListener('input', calcTMB);
