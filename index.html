@@ -996,13 +996,13 @@ function updateChartVisibility() {
 }
 
 function renderContornosChart(data) {
-  const filled = data.filter(r => ZONES.some(z => r[z.col-1] != null && r[z.col-1] !== ''));
+  const filled = data.filter(r => ZONES.some(z => r[z.col] != null && r[z.col] !== ''));
   const labels = filled.map(r => 'S' + (r[1] || '?'));
 
   const datasets = ZONES.map(z => ({
     label: z.label,
     data: filled.map(r => {
-      const v = r[z.col - 1];
+      const v = r[z.col];
       return v != null && v !== '' ? +v : null;
     }),
     borderColor: z.color,
