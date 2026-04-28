@@ -419,6 +419,23 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
             <div style="font-size:11px;color:var(--muted);font-style:italic">Calculado con tus últimas medidas de cintura y glúteo</div>
           </div>
           <div class="card" style="margin-bottom:0">
+            <div class="card-title">% Graso estimado</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div style="text-align:center;flex:1">
+                <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">% Graso</div>
+                <div id="bf-val" style="font-family:'Syne',sans-serif;font-weight:800;font-size:2.2rem;color:#ff6b35;letter-spacing:-0.03em">—</div>
+              </div>
+              <div style="flex:2;padding-left:16px">
+                <div id="bf-badge" style="font-size:12px;font-weight:600;margin-bottom:8px">—</div>
+                <div style="font-size:11px;color:var(--muted);line-height:1.7">
+                  <span style="color:var(--accent2)">H</span> &lt;8% atlético · 8–19% fitness · 20–24% aceptable · &gt;25% obesidad<br>
+                  <span style="color:var(--accent2)">M</span> &lt;15% atlético · 16–24% fitness · 25–31% aceptable · &gt;32% obesidad
+                </div>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--muted);font-style:italic">Fórmula Marina EE.UU. · Estimación ±3–4% · Útil para seguir la tendencia</div>
+          </div>
+          <div class="card" style="margin-bottom:0">
             <div class="card-title">Sobre la TMB</div>
             <p style="font-size:13px;color:var(--muted);line-height:1.8">La <strong style="color:var(--text)">TMB</strong> es la energía que tu cuerpo necesita en reposo absoluto.<br><br>El <strong style="color:var(--text)">TDEE</strong> incluye tu actividad diaria.<br><br>El balance calórico usa tu TMB como referencia. Es una <strong style="color:var(--text)">estimación</strong> — cada cuerpo es diferente.</p>
           </div>
@@ -879,6 +896,42 @@ async function loadContornos() {
     const badge = document.getElementById('ratio-badge');
     badge.textContent = riesgo;
     badge.style.color = color;
+  }
+
+  // Body fat estimation (US Navy formula)
+  const altura = parseFloat(document.getElementById('p-altura')?.value) || 0;
+  const sexoBF = document.getElementById('p-sexo')?.value || 'H';
+  const withBF = data.filter(r => r[3] != null && r[3] !== '' && r[8] != null && r[8] !== '');
+  if (withBF.length > 0 && altura > 0) {
+    const last = withBF[withBF.length - 1];
+    const cuello  = +last[3];
+    const abdomen = +last[7];
+    const cintura = +last[8];
+    const gluteo  = +last[9];
+    let bf;
+    if (sexoBF === 'H') {
+      bf = 495 / (1.0324 - 0.19077 * Math.log10(abdomen - cuello) + 0.15456 * Math.log10(altura)) - 450;
+    } else {
+      bf = 495 / (1.29579 - 0.35004 * Math.log10(cintura + gluteo - cuello) + 0.22100 * Math.log10(altura)) - 450;
+    }
+    if (!isNaN(bf) && bf > 0 && bf < 60) {
+      document.getElementById('bf-val').textContent = bf.toFixed(1) + '%';
+      let bfLabel, bfColor;
+      if (sexoBF === 'H') {
+        if (bf < 8)       { bfLabel = 'Atlético';   bfColor = 'var(--accent2)'; }
+        else if (bf < 20) { bfLabel = 'Fitness';    bfColor = 'var(--accent)'; }
+        else if (bf < 25) { bfLabel = 'Aceptable';  bfColor = 'var(--fat)'; }
+        else              { bfLabel = 'Obesidad';   bfColor = 'var(--warn)'; }
+      } else {
+        if (bf < 15)      { bfLabel = 'Atlético';   bfColor = 'var(--accent2)'; }
+        else if (bf < 25) { bfLabel = 'Fitness';    bfColor = 'var(--accent)'; }
+        else if (bf < 32) { bfLabel = 'Aceptable';  bfColor = 'var(--fat)'; }
+        else              { bfLabel = 'Obesidad';   bfColor = 'var(--warn)'; }
+      }
+      const bfBadge = document.getElementById('bf-badge');
+      bfBadge.textContent = bfLabel;
+      bfBadge.style.color = bfColor;
+    }
   }
 
   if (wr) {
