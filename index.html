@@ -1092,7 +1092,7 @@ function renderContornosHistorial(data) {
     html += `<tr>
       <td style="color:var(--accent);font-weight:600;font-family:'DM Mono',monospace">S${r[1]||'?'}</td>
       ${f(r[2],'var(--weight)')}
-      ${ZONES.map(z => f(r[z.col-1], z.color)).join('')}
+      ${ZONES.map(z => f(r[z.col], z.color)).join('')}
     </tr>`;
   });
   html += '</tbody></table></div>';
