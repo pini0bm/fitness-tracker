@@ -172,7 +172,7 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
 <div id="auth-screen">
   <div class="logo-block">
     <h1>Fitness Tracker</h1>
-    <p>Seguimiento físico</p>
+    <p>Control de dieta, peso y contornos</p>
   </div>
   <div class="auth-card">
     <h2>Accede con tu cuenta</h2>
@@ -623,7 +623,7 @@ function calcKcal() {
 }
 
 function renderPesoChart(data) {
-  const rows = data.filter(r => r[7] != null && r[7] !== '');
+  const rows = data.filter(r => r[2] && r[2] !== '' && r[7] != null && r[7] !== '');
   const labels = rows.map(r => excelDateToStr(r[0]) || ('S'+r[1]+' D'+(data.indexOf(r)%8+1)));
   const values = rows.map(r => +r[7]);
   const ctx = document.getElementById('peso-chart');
@@ -646,6 +646,16 @@ function renderPesoChart(data) {
         tension: 0.4,
         fill: true,
         spanGaps: true,
+      }, {
+        label: 'Media',
+        data: Array(values.length).fill(values.length ? values.reduce((a,b)=>a+b,0)/values.length : 0),
+        borderColor: 'rgba(192,132,252,0.5)',
+        borderWidth: 1.5,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        fill: false,
+        tension: 0,
       }]
     },
     options: {
@@ -662,7 +672,12 @@ function renderPesoChart(data) {
           titleFont: { family: 'DM Mono', size: 11 },
           bodyFont: { family: 'DM Mono', size: 12, weight: 'bold' },
           padding: 12,
-          callbacks: { label: ctx => ' ' + ctx.parsed.y.toFixed(1) + ' kg' }
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.label === 'Media') return ' Media: ' + ctx.parsed.y.toFixed(1) + ' kg';
+              return ' ' + ctx.parsed.y.toFixed(1) + ' kg';
+            }
+          }
         }
       },
       scales: {
@@ -680,7 +695,7 @@ function renderPesoChart(data) {
 }
 
 function renderSuenoChart(data) {
-  const rows = data.filter(r => r[8] != null && r[8] !== '');
+  const rows = data.filter(r => r[2] && r[2] !== '' && r[8] != null && r[8] !== '');
   const labels = rows.map(r => excelDateToStr(r[0]) || ('S'+r[1]));
   const values = rows.map(r => +r[8]);
   const ctx = document.getElementById('sueno-chart');
@@ -713,7 +728,12 @@ function renderSuenoChart(data) {
           titleFont: { family: 'DM Mono', size: 11 },
           bodyFont: { family: 'DM Mono', size: 12, weight: 'bold' },
           padding: 12,
-          callbacks: { label: ctx => ' ' + ctx.parsed.y.toFixed(1) + ' horas' }
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.label === 'Media') return ' Media: ' + ctx.parsed.y.toFixed(1) + ' h';
+              return ' ' + ctx.parsed.y.toFixed(1) + ' horas';
+            }
+          }
         }
       },
       scales: {
@@ -730,7 +750,7 @@ function renderSuenoChart(data) {
 }
 
 function renderPasosChart(data) {
-  const rows = data.filter(r => r[10] != null && r[10] !== '');
+  const rows = data.filter(r => r[2] && r[2] !== '' && r[10] != null && r[10] !== '');
   const labels = rows.map(r => excelDateToStr(r[0]) || ('S'+r[1]));
   const values = rows.map(r => +r[10]);
   const ctx = document.getElementById('pasos-chart');
@@ -747,6 +767,19 @@ function renderPasosChart(data) {
         borderColor:     values.map(v => v >= 10000 ? '#00897b' : v >= 7500 ? '#00bfa5' : '#6b7585'),
         borderWidth: 1,
         borderRadius: 4,
+        order: 2,
+      }, {
+        label: 'Media',
+        data: Array(values.length).fill(values.length ? values.reduce((a,b)=>a+b,0)/values.length : 0),
+        borderColor: 'rgba(0,137,123,0.5)',
+        borderWidth: 1.5,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        fill: false,
+        tension: 0,
+        type: 'line',
+        order: 1,
       }]
     },
     options: {
@@ -763,7 +796,12 @@ function renderPasosChart(data) {
           titleFont: { family: 'DM Mono', size: 11 },
           bodyFont: { family: 'DM Mono', size: 12, weight: 'bold' },
           padding: 12,
-          callbacks: { label: ctx => ' ' + ctx.parsed.y.toLocaleString() + ' pasos' }
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.label === 'Media') return ' Media: ' + Math.round(ctx.parsed.y).toLocaleString() + ' pasos';
+              return ' ' + ctx.parsed.y.toLocaleString() + ' pasos';
+            }
+          }
         },
         annotation: {
           annotations: {
