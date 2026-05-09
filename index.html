@@ -154,6 +154,16 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
 .tdee-item .lbl{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:4px}
 .tdee-item .val{font-family:'Syne',sans-serif;font-weight:700;font-size:1.2rem}
 
+/* CHART FILTER BUTTONS */
+.chart-filters { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+.chart-filter-btn {
+  padding:4px 12px; border-radius:999px; font-size:11px;
+  font-family:'DM Mono',monospace; cursor:pointer; transition:all .2s;
+  border:1px solid var(--border2); background:none; color:var(--muted);
+}
+.chart-filter-btn:hover { border-color:var(--accent); color:var(--accent); }
+.chart-filter-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+
 /* TOAST */
 #toast{position:fixed;bottom:28px;right:28px;background:var(--card);border:1px solid var(--border2);border-radius:var(--radius);padding:14px 20px;font-size:13px;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,.4);transform:translateY(80px);opacity:0;transition:all .3s cubic-bezier(.4,0,.2,1);z-index:1000;max-width:320px}
 #toast.show{transform:translateY(0);opacity:1}
@@ -245,14 +255,32 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
       <div class="section-sub">Evolución del peso y registro diario</div>
       <div class="card">
         <div class="card-title">Evolución del peso corporal</div>
+        <div class="chart-filters" id="filters-peso">
+          <button class="chart-filter-btn active" onclick="setFilter('peso',30,this)">30 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('peso',60,this)">60 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('peso',90,this)">90 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('peso',0,this)">Todo</button>
+        </div>
         <div style="position:relative;height:240px"><canvas id="peso-chart"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Evolución del sueño</div>
+        <div class="chart-filters" id="filters-sueno">
+          <button class="chart-filter-btn active" onclick="setFilter('sueno',30,this)">30 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('sueno',60,this)">60 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('sueno',90,this)">90 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('sueno',0,this)">Todo</button>
+        </div>
         <div style="position:relative;height:200px"><canvas id="sueno-chart"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Evolución de los pasos diarios</div>
+        <div class="chart-filters" id="filters-pasos">
+          <button class="chart-filter-btn active" onclick="setFilter('pasos',30,this)">30 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('pasos',60,this)">60 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('pasos',90,this)">90 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('pasos',0,this)">Todo</button>
+        </div>
         <div style="position:relative;height:200px"><canvas id="pasos-chart"></canvas></div>
       </div>
       <div class="card"><div id="historial-content"><div class="loading-state"><div class="spinner"></div> Cargando datos...</div></div></div>
@@ -266,6 +294,12 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
       <!-- Gráfico interactivo -->
       <div class="card">
         <div class="card-title">Evolución de contornos</div>
+        <div class="chart-filters" id="filters-contornos">
+          <button class="chart-filter-btn active" onclick="setFilter('contornos',12,this)">12 sem.</button>
+          <button class="chart-filter-btn" onclick="setFilter('contornos',24,this)">24 sem.</button>
+          <button class="chart-filter-btn" onclick="setFilter('contornos',36,this)">36 sem.</button>
+          <button class="chart-filter-btn" onclick="setFilter('contornos',0,this)">Todo</button>
+        </div>
         <div class="legend-pills" id="legend-pills"></div>
         <div style="display:grid;grid-template-columns:1fr 220px;gap:24px;align-items:center">
           <div class="chart-container"><canvas id="contornos-chart"></canvas></div>
@@ -482,6 +516,8 @@ let contornosChart = null;
 let pesoChart = null;
 let suenoChart = null;
 let pasosChart = null;
+let dietaData = [];
+const chartFilters = { peso: 30, sueno: 30, pasos: 30, contornos: 12 };
 let contornosData  = [];
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
@@ -558,6 +594,7 @@ let dietaRows = [];
 async function loadDieta() {
   const data = await sheetsGet(`'${TAB_DIETA}'!A4:M420`);
   dietaRows = data;
+  dietaData = data;
   // Find today's row using day-of-week and week number relative to start
   const now = new Date();
   const startDate = new Date(2026, 3, 27); // April 28 2026
@@ -623,7 +660,9 @@ function calcKcal() {
 }
 
 function renderPesoChart(data) {
-  const rows = data.filter(r => r[2] && r[2] !== '' && r[7] != null && r[7] !== '');
+  const n = chartFilters.peso;
+  const allRows = data.filter(r => r[2] && r[2] !== '' && r[7] != null && r[7] !== '');
+  const rows = n > 0 ? allRows.slice(-n) : allRows;
   const labels = rows.map(r => excelDateToStr(r[0]) || ('S'+r[1]+' D'+(data.indexOf(r)%8+1)));
   const values = rows.map(r => +r[7]);
   const ctx = document.getElementById('peso-chart');
@@ -696,7 +735,9 @@ function renderPesoChart(data) {
 }
 
 function renderSuenoChart(data) {
-  const rows = data.filter(r => r[2] && r[2] !== '' && r[8] != null && r[8] !== '');
+  const n = chartFilters.sueno;
+  const allRows = data.filter(r => r[2] && r[2] !== '' && r[8] != null && r[8] !== '');
+  const rows = n > 0 ? allRows.slice(-n) : allRows;
   const labels = rows.map(r => excelDateToStr(r[0]) || ('S'+r[1]));
   const values = rows.map(r => +r[8]);
   const ctx = document.getElementById('sueno-chart');
@@ -766,7 +807,9 @@ function renderSuenoChart(data) {
 }
 
 function renderPasosChart(data) {
-  const rows = data.filter(r => r[2] && r[2] !== '' && r[10] != null && r[10] !== '');
+  const n = chartFilters.pasos;
+  const allRows = data.filter(r => r[2] && r[2] !== '' && r[10] != null && r[10] !== '');
+  const rows = n > 0 ? allRows.slice(-n) : allRows;
   const labels = rows.map(r => excelDateToStr(r[0]) || ('S'+r[1]));
   const values = rows.map(r => +r[10]);
   const ctx = document.getElementById('pasos-chart');
@@ -839,6 +882,18 @@ function renderPasosChart(data) {
       }
     }
   });
+}
+
+function setFilter(chart, n, btn) {
+  chartFilters[chart] = n;
+  // Update active button
+  document.querySelectorAll(`#filters-${chart} .chart-filter-btn`).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // Re-render the relevant chart
+  if (chart === 'peso')      renderPesoChart(dietaData);
+  if (chart === 'sueno')     renderSuenoChart(dietaData);
+  if (chart === 'pasos')     renderPasosChart(dietaData);
+  if (chart === 'contornos') renderContornosChart(contornosData);
 }
 
 function renderHistorial(data) {
@@ -1052,7 +1107,9 @@ function updateChartVisibility() {
 }
 
 function renderContornosChart(data) {
-  const filled = data.filter(r => ZONES.some(z => r[z.col] != null && r[z.col] !== ''));
+  const nC = chartFilters.contornos;
+  const allFilled = data.filter(r => ZONES.some(z => r[z.col] != null && r[z.col] !== ''));
+  const filled = nC > 0 ? allFilled.slice(-nC) : allFilled;
   const labels = filled.map(r => 'S' + (r[1] || '?'));
 
   const datasets = ZONES.map(z => ({
