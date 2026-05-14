@@ -182,7 +182,7 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
 <div id="auth-screen">
   <div class="logo-block">
     <h1>Fitness Tracker</h1>
-    <p>Seguimiento físico</p>
+    <p>Seguimiento Físico</p>
   </div>
   <div class="auth-card">
     <h2>Accede con tu cuenta</h2>
@@ -687,7 +687,7 @@ function renderPesoChart(data) {
         spanGaps: true,
       }, {
         label: 'Media',
-        data: Array(values.length).fill(values.length > 0 ? values.reduce((a,b)=>a+b,0)/values.length : 0),
+        data: Array(values.length).fill(values.length > 0 ? Math.round(values.reduce((a,b)=>a+b,0)/values.length * 10) / 10 : 0),
         borderColor: '#e040fb',
         backgroundColor: 'transparent',
         borderWidth: 2,
@@ -727,7 +727,7 @@ function renderPesoChart(data) {
         },
         y: {
           grid: { color: '#222830' },
-          ticks: { color: '#6b7585', font: { family: 'DM Mono', size: 10 }, callback: v => v + ' kg' }
+          ticks: { color: '#6b7585', font: { family: 'DM Mono', size: 10 }, callback: v => (+v).toFixed(1) + ' kg', maxTicksLimit: 8 }
         }
       }
     }
@@ -757,7 +757,7 @@ function renderSuenoChart(data) {
         order: 2,
       }, {
         label: 'Media',
-        data: Array(values.length).fill(values.length > 0 ? values.reduce((a,b)=>a+b,0)/values.length : 0),
+        data: Array(values.length).fill(values.length > 0 ? Math.round(values.reduce((a,b)=>a+b,0)/values.length * 10) / 10 : 0),
         borderColor: '#b39ddb',
         backgroundColor: 'transparent',
         borderWidth: 2,
@@ -829,7 +829,7 @@ function renderPasosChart(data) {
         order: 2,
       }, {
         label: 'Media',
-        data: Array(values.length).fill(values.length > 0 ? values.reduce((a,b)=>a+b,0)/values.length : 0),
+        data: Array(values.length).fill(values.length > 0 ? Math.round(values.reduce((a,b)=>a+b,0)/values.length * 10) / 10 : 0),
         borderColor: '#80cbc4',
         backgroundColor: 'transparent',
         borderWidth: 2,
