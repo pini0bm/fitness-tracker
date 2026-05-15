@@ -1094,6 +1094,22 @@ async function loadContornos() {
   }
 }
 
+function resetContornosHover() {
+  if (!contornosChart) return;
+  contornosChart.data.datasets.forEach((ds, i) => {
+    if (!ds.hidden) {
+      ds.borderWidth = 2;
+      ds.borderColor = ZONES[i].color;
+      ds.pointRadius = 3;
+      ds.pointBackgroundColor = ZONES[i].color;
+    }
+  });
+  ZONES.forEach(z => {
+    document.querySelector(`[data-zone="${z.key}"]`)?.classList.remove('hover-highlight');
+  });
+  contornosChart.update('none');
+}
+
 function buildLegendPills() {
   const container = document.getElementById('legend-pills');
   container.innerHTML = '';
@@ -1171,6 +1187,10 @@ function renderContornosChart(data) {
   const ctx = document.getElementById('contornos-chart').getContext('2d');
   if (contornosChart) contornosChart.destroy();
 
+  const canvasEl = document.getElementById('contornos-chart');
+  if (canvasEl) {
+    canvasEl.onmouseleave = () => resetContornosHover();
+  }
   contornosChart = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets },
@@ -1181,23 +1201,7 @@ function renderContornosChart(data) {
       onHover: (event, elements) => {
         if (!contornosChart) return;
         if (elements.length === 0) {
-          // Reset all lines to full opacity
-          contornosChart.data.datasets.forEach((ds, i) => {
-            if (!ds.hidden) {
-              ds.borderWidth = 2;
-              ds.borderColor = ZONES[i].color;
-              ds.pointRadius = 3;
-              ds.pointBackgroundColor = ZONES[i].color;
-            }
-          });
-          // Reset all SVG zones
-          ZONES.forEach(z => {
-            const el = document.querySelector(`[data-zone="${z.key}"]`);
-            if (el && !activeZones.has(z.key)) {
-              el.classList.remove('hover-highlight');
-            }
-          });
-          contornosChart.update('none');
+          resetContornosHover();
         } else {
           const hoveredIdx = elements[0].datasetIndex;
           const hoveredZone = ZONES[hoveredIdx];
@@ -1242,6 +1246,14 @@ function renderContornosChart(data) {
           padding: 12,
           callbacks: {
             label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(1) + ' cm' : '—'}`
+          }
+        },
+        customLeave: {
+          id: 'customLeave',
+          afterEvent(chart, args) {
+            if (args.event.type === 'mouseout') {
+              resetContornosHover();
+            }
           }
         }
       },
