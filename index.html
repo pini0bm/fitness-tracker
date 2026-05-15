@@ -182,7 +182,7 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
 <div id="auth-screen">
   <div class="logo-block">
     <h1>Fitness Tracker</h1>
-    <p>Seguimiento Físico</p>
+    <p>Control de dieta, peso y contornos</p>
   </div>
   <div class="auth-card">
     <h2>Accede con tu cuenta</h2>
@@ -210,6 +210,7 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
     <button class="tab" data-tab="historial">Historial</button>
     <button class="tab" data-tab="contornos">Contornos</button>
     <button class="tab" data-tab="perfil">Perfil & TMB</button>
+    <button class="tab" data-tab="resumen">Resumen semanal</button>
   </nav>
   <main>
 
@@ -395,6 +396,15 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
       <div class="card">
         <div class="card-title">Historial de contornos</div>
         <div id="contornos-historial"><div class="loading-state"><div class="spinner"></div> Cargando...</div></div>
+      </div>
+    </div>
+
+    <!-- RESUMEN SEMANAL -->
+    <div class="section" id="tab-resumen">
+      <div class="section-title">Resumen semanal</div>
+      <div class="section-sub">Medias semanales de macros, peso, sueño y entrenamiento</div>
+      <div class="card">
+        <div id="resumen-content"><div class="loading-state"><div class="spinner"></div> Cargando...</div></div>
       </div>
     </div>
 
@@ -587,6 +597,7 @@ async function loadAll() {
   try { await loadDieta(); } catch(e) { console.error('loadDieta error:', e); toast('Error al cargar dieta: ' + (e?.result?.error?.message || e?.message || ''), 'err'); }
   try { await loadContornos(); } catch(e) { console.error('loadContornos error:', e); }
   try { await loadPerfil(); } catch(e) { console.error('loadPerfil error:', e); }
+  try { await loadResumen(); } catch(e) { console.error('loadResumen error:', e); }
 }
 
 // ── DIETA ────────────────────────────────────────────────────────────────────
@@ -1316,6 +1327,72 @@ async function guardarPerfil() {
     await sheetsUpdate(`'${TAB_PERFIL}'!B19:B19`, [[actLabels[factor] || factor]]);
     toast('¡Perfil guardado! ✓', 'ok'); calcTMB();
   } catch(e) { toast('Error al guardar perfil: ' + (e.result?.error?.message || e.message), 'err'); console.error(e); }
+}
+
+// ── RESUMEN SEMANAL ──────────────────────────────────────────────────────────
+async function loadResumen() {
+  const data = await sheetsGet(`'${TAB_DIETA}'!A4:M420`);
+  const cont = document.getElementById('resumen-content');
+  if (!cont) return;
+
+  // Summary rows are every 8th row starting at row 11 (index 7, then +8 each week)
+  // They have no day name in col C (index 2) and have week number in col B (index 1)
+  const summaryRows = data.filter(r => {
+    // Summary rows: col C empty, col B is a number (week), col D or H has a value
+    return (!r[2] || r[2] === '') && r[1] != null && r[1] !== '' &&
+           (r[3] != null && r[3] !== '' || r[7] != null && r[7] !== '');
+  });
+
+  if (!summaryRows.length) {
+    cont.innerHTML = '<div class="empty-state"><span>📊</span><p>Aún no hay semanas completas registradas.</p></div>';
+    return;
+  }
+
+  let html = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Semana</th>
+      <th style="color:var(--prot)">Prot. (g)</th>
+      <th style="color:var(--carb)">Carb. (g)</th>
+      <th style="color:var(--fat)">Grasas (g)</th>
+      <th style="color:var(--kcal)">Kcal</th>
+      <th style="color:var(--weight)">Peso (kg)</th>
+      <th style="color:var(--sleep)">Sueño (h)</th>
+      <th style="color:var(--train)">Entreno</th>
+      <th>Balance</th>
+    </tr></thead><tbody>`;
+
+  summaryRows.forEach(r => {
+    const week  = r[1] != null ? +r[1] : '—';
+    const prot  = r[3] != null && r[3] !== '' ? (+r[3]).toFixed(1) : '—';
+    const carb  = r[4] != null && r[4] !== '' ? (+r[4]).toFixed(1) : '—';
+    const fat   = r[5] != null && r[5] !== '' ? (+r[5]).toFixed(1) : '—';
+    const kcal  = r[6] != null && r[6] !== '' ? Math.round(+r[6])  : '—';
+    const peso  = r[7] != null && r[7] !== '' ? (+r[7]).toFixed(1) : '—';
+    const sueno = r[8] != null && r[8] !== '' ? (+r[8]).toFixed(1) : '—';
+    const ent   = r[9] != null && r[9] !== '' ? r[9] + ' días'     : '—';
+    const bal   = r[12] != null && r[12] !== '' ? Math.round(+r[12]) : null;
+
+    let badgeBal = '<span style="color:var(--muted)">—</span>';
+    if (bal != null) {
+      const cls = bal > 0 ? 'badge-pos' : bal < 0 ? 'badge-neg' : 'badge-neu';
+      badgeBal = `<span class="badge ${cls}">${bal > 0 ? '+' : ''}${bal}</span>`;
+    }
+
+    html += `<tr>
+      <td style="font-family:'DM Mono',monospace;font-weight:600;color:var(--accent)">Sem. ${week}</td>
+      <td style="color:var(--prot)">${prot}</td>
+      <td style="color:var(--carb)">${carb}</td>
+      <td style="color:var(--fat)">${fat}</td>
+      <td style="color:var(--kcal);font-weight:600">${kcal}</td>
+      <td style="color:var(--weight);font-weight:600">${peso}</td>
+      <td style="color:var(--sleep)">${sueno}</td>
+      <td style="color:var(--train);font-size:12px">${ent}</td>
+      <td>${badgeBal}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div>';
+  cont.innerHTML = html;
 }
 
 // ── UI ────────────────────────────────────────────────────────────────────────
