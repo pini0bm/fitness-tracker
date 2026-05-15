@@ -1338,9 +1338,10 @@ async function loadResumen() {
   // Summary rows are every 8th row starting at row 11 (index 7, then +8 each week)
   // They have no day name in col C (index 2) and have week number in col B (index 1)
   const summaryRows = data.filter(r => {
-    // Summary rows: col C empty, col B is a number (week), col D or H has a value
-    return (!r[2] || r[2] === '') && r[1] != null && r[1] !== '' &&
-           (r[3] != null && r[3] !== '' || r[7] != null && r[7] !== '');
+    // Summary rows contain '✦ Media Semana' in col A (index 0) or col C (index 2)
+    const a = String(r[0] || '');
+    const c = String(r[2] || '');
+    return a.includes('Media Semana') || c.includes('Media Semana');
   });
 
   if (!summaryRows.length) {
@@ -1362,7 +1363,10 @@ async function loadResumen() {
     </tr></thead><tbody>`;
 
   summaryRows.forEach(r => {
-    const week  = r[1] != null ? +r[1] : '—';
+    // Extract week number from the 'Media Semana X' text
+    const weekText = String(r[0] || r[2] || '');
+    const weekMatch = weekText.match(/\d+/);
+    const week = weekMatch ? +weekMatch[0] : '—';
     const prot  = r[3] != null && r[3] !== '' ? (+r[3]).toFixed(1) : '—';
     const carb  = r[4] != null && r[4] !== '' ? (+r[4]).toFixed(1) : '—';
     const fat   = r[5] != null && r[5] !== '' ? (+r[5]).toFixed(1) : '—';
