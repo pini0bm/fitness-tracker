@@ -122,6 +122,25 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
 .body-zone[data-zone="muslo"].active    .zone-shape{fill:rgba(76,175,80,.35);stroke:#4CAF50;filter:drop-shadow(0 0 6px rgba(76,175,80,.5))}
 .body-zone[data-zone="gemelo"].active   .zone-shape{fill:rgba(139,195,74,.35);stroke:#8BC34A;filter:drop-shadow(0 0 6px rgba(139,195,74,.5))}
 
+.body-zone[data-zone="cuello"].hover-highlight   .zone-shape{fill:rgba(233,30,99,.5);stroke:#E91E63;stroke-width:2.5;filter:drop-shadow(0 0 10px rgba(233,30,99,.8))}
+.body-zone[data-zone="hombro"].hover-highlight   .zone-shape{fill:rgba(156,39,176,.5);stroke:#9C27B0;stroke-width:2.5;filter:drop-shadow(0 0 10px rgba(156,39,176,.8))}
+.body-zone[data-zone="pecho"].hover-highlight    .zone-shape{fill:rgba(103,58,183,.5);stroke:#673AB7;stroke-width:2.5;filter:drop-shadow(0 0 10px rgba(103,58,183,.8))}
+.body-zone[data-zone="biceps"].hover-highlight   .zone-shape{fill:rgba(63,81,181,.5);stroke:#3F51B5;stroke-width:2.5;filter:drop-shadow(0 0 10px rgba(63,81,181,.8))}
+.body-zone[data-zone="abdomen"].hover-highlight  .zone-shape{fill:rgba(33,150,243,.5);stroke:#2196F3;stroke-width:2.5;filter:drop-shadow(0 0 10px rgba(33,150,243,.8))}
+.body-zone[data-zone="cintura"].hover-highlight  .zone-shape{fill:rgba(0,188,212,.5);stroke:#00BCD4;stroke-width:2.5;filter:drop-shadow(0 0 10px rgba(0,188,212,.8))}
+.body-zone[data-zone="gluteo"].hover-highlight   .zone-shape{fill:rgba(0,150,136,.5);stroke:#009688;stroke-width:2.5;filter:drop-shadow(0 0 10px rgba(0,150,136,.8))}
+.body-zone[data-zone="muslo"].hover-highlight    .zone-shape{fill:rgba(76,175,80,.5);stroke:#4CAF50;stroke-width:2.5;filter:drop-shadow(0 0 10px rgba(76,175,80,.8))}
+.body-zone[data-zone="gemelo"].hover-highlight   .zone-shape{fill:rgba(139,195,74,.5);stroke:#8BC34A;stroke-width:2.5;filter:drop-shadow(0 0 10px rgba(139,195,74,.8))}
+.body-zone[data-zone="cuello"].hover-highlight   .zone-label,
+.body-zone[data-zone="hombro"].hover-highlight   .zone-label,
+.body-zone[data-zone="pecho"].hover-highlight    .zone-label,
+.body-zone[data-zone="biceps"].hover-highlight   .zone-label,
+.body-zone[data-zone="abdomen"].hover-highlight  .zone-label,
+.body-zone[data-zone="cintura"].hover-highlight  .zone-label,
+.body-zone[data-zone="gluteo"].hover-highlight   .zone-label,
+.body-zone[data-zone="muslo"].hover-highlight    .zone-label,
+.body-zone[data-zone="gemelo"].hover-highlight   .zone-label { fill:#ffffff; font-weight:bold; }
+
 .zone-hint{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;text-align:center;font-style:italic}
 
 /* Chart container */
@@ -1084,6 +1103,14 @@ function buildLegendPills() {
     pill.id = 'pill-' + z.key;
     pill.innerHTML = `<div class="legend-dot" style="background:${z.color}"></div>${z.label}`;
     pill.onclick = () => toggleZone(z.key);
+    pill.onmouseenter = () => {
+      const el = document.querySelector(`[data-zone="${z.key}"]`);
+      if (el) el.classList.add('hover-highlight');
+    };
+    pill.onmouseleave = () => {
+      const el = document.querySelector(`[data-zone="${z.key}"]`);
+      if (el) el.classList.remove('hover-highlight');
+    };
     container.appendChild(pill);
   });
 }
@@ -1154,30 +1181,53 @@ function renderContornosChart(data) {
       onHover: (event, elements) => {
         if (!contornosChart) return;
         if (elements.length === 0) {
-          // Reset all to full opacity
+          // Reset all lines to full opacity
           contornosChart.data.datasets.forEach((ds, i) => {
             if (!ds.hidden) {
               ds.borderWidth = 2;
               ds.borderColor = ZONES[i].color;
               ds.pointRadius = 3;
+              ds.pointBackgroundColor = ZONES[i].color;
             }
           });
+          // Reset all SVG zones
+          ZONES.forEach(z => {
+            const el = document.querySelector(`[data-zone="${z.key}"]`);
+            if (el && !activeZones.has(z.key)) {
+              el.classList.remove('hover-highlight');
+            }
+          });
+          contornosChart.update('none');
         } else {
           const hoveredIdx = elements[0].datasetIndex;
+          const hoveredZone = ZONES[hoveredIdx];
           contornosChart.data.datasets.forEach((ds, i) => {
             if (ds.hidden) return;
             if (i === hoveredIdx) {
               ds.borderWidth = 4;
               ds.borderColor = ZONES[i].color;
               ds.pointRadius = 5;
+              ds.pointBackgroundColor = ZONES[i].color;
             } else {
-              ds.borderWidth = 1;
-              ds.borderColor = ZONES[i].color + '40';
+              ds.borderWidth = 1.5;
+              ds.borderColor = ZONES[i].color + '55';
               ds.pointRadius = 2;
+              ds.pointBackgroundColor = ZONES[i].color + '55';
             }
           });
+          // Highlight corresponding SVG zone
+          ZONES.forEach(z => {
+            const el = document.querySelector(`[data-zone="${z.key}"]`);
+            if (el) {
+              if (z.key === hoveredZone.key) {
+                el.classList.add('hover-highlight');
+              } else {
+                el.classList.remove('hover-highlight');
+              }
+            }
+          });
+          contornosChart.update('none');
         }
-        contornosChart.update('none');
       },
       plugins: {
         legend: { display: false },
