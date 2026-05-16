@@ -1187,10 +1187,33 @@ function renderContornosChart(data) {
   const ctx = document.getElementById('contornos-chart').getContext('2d');
   if (contornosChart) contornosChart.destroy();
 
-  const canvasEl = document.getElementById('contornos-chart');
-  if (canvasEl) {
-    canvasEl.onmouseleave = () => resetContornosHover();
-  }
+  // Add mouse listeners directly on canvas for reliable hover/leave detection
+  const chartCanvas = ctx.canvas;
+  chartCanvas.addEventListener('mousemove', (e) => {
+    if (!contornosChart) return;
+    const points = contornosChart.getElementsAtEventForMode(e, 'nearest', { intersect: false }, false);
+    if (points.length > 0) {
+      const idx = points[0].datasetIndex;
+      if (idx >= ZONES.length) return;
+      contornosChart.data.datasets.forEach((ds, i) => {
+        if (i >= ZONES.length) return;
+        if (i === idx) {
+          ds.borderWidth = 4; ds.borderColor = ZONES[i].color;
+          ds.pointRadius = 5; ds.pointBackgroundColor = ZONES[i].color;
+        } else {
+          ds.borderWidth = 1.5; ds.borderColor = ZONES[i].color + '55';
+          ds.pointRadius = 2;   ds.pointBackgroundColor = ZONES[i].color + '55';
+        }
+      });
+      ZONES.forEach((z, i) => {
+        const el = document.querySelector(`[data-zone="${z.key}"]`);
+        if (el) i === idx ? el.classList.add('hover-highlight') : el.classList.remove('hover-highlight');
+      });
+      contornosChart.update('none');
+    }
+  });
+  chartCanvas.addEventListener('mouseleave', () => resetContornosHover());
+
   contornosChart = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets },
@@ -1198,41 +1221,7 @@ function renderContornosChart(data) {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      onHover: (event, elements) => {
-        if (!contornosChart) return;
-        if (elements.length === 0) {
-          resetContornosHover();
-        } else {
-          const hoveredIdx = elements[0].datasetIndex;
-          const hoveredZone = ZONES[hoveredIdx];
-          contornosChart.data.datasets.forEach((ds, i) => {
-            if (ds.hidden) return;
-            if (i === hoveredIdx) {
-              ds.borderWidth = 4;
-              ds.borderColor = ZONES[i].color;
-              ds.pointRadius = 5;
-              ds.pointBackgroundColor = ZONES[i].color;
-            } else {
-              ds.borderWidth = 1.5;
-              ds.borderColor = ZONES[i].color + '55';
-              ds.pointRadius = 2;
-              ds.pointBackgroundColor = ZONES[i].color + '55';
-            }
-          });
-          // Highlight corresponding SVG zone
-          ZONES.forEach(z => {
-            const el = document.querySelector(`[data-zone="${z.key}"]`);
-            if (el) {
-              if (z.key === hoveredZone.key) {
-                el.classList.add('hover-highlight');
-              } else {
-                el.classList.remove('hover-highlight');
-              }
-            }
-          });
-          contornosChart.update('none');
-        }
-      },
+
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -1248,14 +1237,7 @@ function renderContornosChart(data) {
             label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(1) + ' cm' : '—'}`
           }
         },
-        customLeave: {
-          id: 'customLeave',
-          afterEvent(chart, args) {
-            if (args.event.type === 'mouseout') {
-              resetContornosHover();
-            }
-          }
-        }
+
       },
       scales: {
         x: { grid: { color: '#222830' }, ticks: { color: '#6b7585', font: { family: 'DM Mono', size: 10 } } },
