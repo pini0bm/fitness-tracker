@@ -183,6 +183,14 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
 .chart-filter-btn:hover { border-color:var(--accent); color:var(--accent); }
 .chart-filter-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
 
+/* TRAINING */
+.ejercicio-row{display:grid;grid-template-columns:1fr 100px 80px;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.ejercicio-row:last-child{border-bottom:none}
+.ejercicio-nombre{font-size:13px;color:var(--text);font-weight:500}
+.ejercicio-input{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:8px 10px;font-size:13px;font-family:"DM Mono",monospace;outline:none;width:100%;text-align:center;transition:border-color .2s}
+.ejercicio-input:focus{border-color:var(--accent)}
+.ejercicio-label{font-size:10px;font-family:"DM Mono",monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:center;margin-bottom:4px}
+@media(max-width:600px){.ejercicio-row{grid-template-columns:1fr}}
 /* TOAST */
 #toast{position:fixed;bottom:28px;right:28px;background:var(--card);border:1px solid var(--border2);border-radius:var(--radius);padding:14px 20px;font-size:13px;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,.4);transform:translateY(80px);opacity:0;transition:all .3s cubic-bezier(.4,0,.2,1);z-index:1000;max-width:320px}
 #toast.show{transform:translateY(0);opacity:1}
@@ -230,6 +238,7 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
     <button class="tab" data-tab="contornos">Contornos</button>
     <button class="tab" data-tab="perfil">Perfil & TMB</button>
     <button class="tab" data-tab="resumen">Resumen semanal</button>
+    <button class="tab" data-tab="entrenamiento">Entrenamiento</button>
   </nav>
   <main>
 
@@ -422,6 +431,48 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
       <div class="card" style="padding:0"><div id="resumen-content" style="max-height:500px;overflow-y:auto;padding:24px"><div class="loading-state"><div class="spinner"></div> Cargando...</div></div></div>
     </div>
 
+    <!-- ENTRENAMIENTO -->
+    <div class="section" id="tab-entrenamiento">
+      <div class="section-title">Seguimiento de entrenamiento</div>
+      <div class="section-sub">Registra peso y repeticiones de la primera serie por ejercicio</div>
+      <div class="card">
+        <div class="card-title">Registrar sesión</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Día de entrenamiento</label>
+            <select id="tr-dia" onchange="loadEjerciciosDelDia()">
+              <option value="">— Selecciona día —</option>
+              <option>Día 1 · Pierna Fuerza</option>
+              <option>Día 2 · Empuje</option>
+              <option>Día 3 · Tirón</option>
+              <option>Día 4 · Pierna Hipertrofia</option>
+              <option>Día 5 · Brazos + Hombro</option>
+            </select>
+          </div>
+        </div>
+        <div id="ejercicios-form" style="margin-top:20px"></div>
+        <button class="btn-primary" id="btn-guardar-tr" onclick="guardarEntrenamiento()" style="display:none">Guardar sesión</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Evolución de cargas</div>
+        <div class="form-grid" style="margin-bottom:16px">
+          <div class="form-group">
+            <label>Selecciona ejercicio</label>
+            <select id="tr-ejercicio-grafico" onchange="renderTrainingChart()">
+              <option value="">— Selecciona ejercicio —</option>
+            </select>
+          </div>
+        </div>
+        <div style="position:relative;height:280px"><canvas id="training-chart"></canvas></div>
+      </div>
+      <div class="card" style="padding:0">
+        <div style="padding:24px 24px 8px"><div class="card-title" style="margin-bottom:0">Historial de sesiones</div></div>
+        <div id="training-historial" style="max-height:400px;overflow-y:auto;padding:0 24px 24px">
+          <div class="loading-state"><div class="spinner"></div> Cargando...</div>
+        </div>
+      </div>
+    </div>
+
     <!-- PERFIL -->
     <div class="section" id="tab-perfil">
       <div class="section-title">Perfil & TMB</div>
@@ -512,7 +563,9 @@ const SHEET_ID  = '1ww6PsDoHB3NfToBZ7-TaTPwa8tW5lkdXm2LXd-8Op_w';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const TAB_DIETA     = 'Dieta & Peso';
 const TAB_CONTORNOS = 'Contornos';
-const TAB_PERFIL    = 'Perfil';
+const TAB_PERFIL        = 'Perfil';
+const TAB_EJERCICIOS    = 'Ejercicios';
+const TAB_ENTRENAMIENTO = 'Entrenamiento';
 
 let tokenClient, accessToken;
 
@@ -612,6 +665,8 @@ async function loadAll() {
   try { await loadContornos(); } catch(e) { console.error('loadContornos error:', e); }
   try { await loadPerfil(); } catch(e) { console.error('loadPerfil error:', e); }
   try { await loadResumen(); } catch(e) { console.error('loadResumen error:', e); }
+  try { await loadEjercicios(); } catch(e) { console.error('loadEjercicios error:', e); }
+  try { await loadTrainingData(); } catch(e) { console.error('loadTrainingData error:', e); }
 }
 
 // ── DIETA ────────────────────────────────────────────────────────────────────
@@ -1438,6 +1493,201 @@ async function loadResumen() {
   cont.innerHTML = html;
 }
 
+// ── ENTRENAMIENTO ────────────────────────────────────────────────────────────
+let ejerciciosPorDia = {};
+let trainingData = [];
+let trainingChart = null;
+
+const DIAS_EJERCICIOS = {
+  "Día 1 · Pierna Fuerza": ["Sentadilla en Multipower","Prensa de piernas","Peso muerto rumano (barra)","Hip thrust (máquina)","Curl femoral tumbado","Gemelo de pie"],
+  "Día 2 · Empuje": ["Press convergente (máquina)","Press inclinado mancuernas","Cruces en polea baja (low-to-high)","Pec deck (abrazo)","Press militar máquina convergente","JM press","Extensión tríceps polea alta barra V"],
+  "Día 3 · Tirón": ["Jalón en polea agarre neutro medio","Remo en banco inclinado (barra)","Remo Dorian unilateral en máquina","Pullover en polea","Pec deck inverso (máquina)","Curl con barra (técnica estricta)","Curl Bayesian unilateral polea baja"],
+  "Día 4 · Pierna Hipertrofia": ["Hack Squat","Sentadilla búlgara (mancuernas)","Extensiones de cuádriceps","RDL con mancuernas","Curl femoral de pie unilateral","Gemelo sentado (sóleo)"],
+  "Día 5 · Brazos + Hombro": ["Elevaciones laterales máquina","Elevaciones laterales polea unilateral","Elevaciones laterales mancuerna en banco inclinado","Curl araña en banco inclinado","Press francés mancuerna","Curl martillo mancuernas","Extensión tríceps unilateral polea alta agarre neutro","Pájaros polea baja cruzada","Encogimientos mancuernas"],
+};
+
+async function loadEjercicios() {
+  try {
+    const data = await sheetsGet(`'${TAB_EJERCICIOS}'!A4:B200`);
+    ejerciciosPorDia = {};
+    let lastDia = null;
+    data.forEach(r => {
+      const dia = r[0] ? String(r[0]).trim() : null;
+      const ej  = r[1] ? String(r[1]).trim() : null;
+      if (!ej) return;
+      if (dia) { lastDia = dia; if (!ejerciciosPorDia[dia]) ejerciciosPorDia[dia] = []; }
+      if (lastDia) ejerciciosPorDia[lastDia].push(ej);
+    });
+    if (!Object.keys(ejerciciosPorDia).length) ejerciciosPorDia = DIAS_EJERCICIOS;
+  } catch(e) {
+    ejerciciosPorDia = DIAS_EJERCICIOS;
+  }
+  // Populate chart selector
+  const sel = document.getElementById('tr-ejercicio-grafico');
+  if (sel) {
+    sel.innerHTML = '<option value="">— Selecciona ejercicio —</option>';
+    const allEj = [...new Set(Object.values(ejerciciosPorDia).flat())];
+    allEj.forEach(ej => {
+      const opt = document.createElement('option');
+      opt.value = ej; opt.textContent = ej;
+      sel.appendChild(opt);
+    });
+  }
+}
+
+function loadEjerciciosDelDia() {
+  const dia = document.getElementById('tr-dia').value;
+  const form = document.getElementById('ejercicios-form');
+  const btn  = document.getElementById('btn-guardar-tr');
+  if (!dia) { form.innerHTML = ''; btn.style.display = 'none'; return; }
+  const ejercicios = ejerciciosPorDia[dia] || DIAS_EJERCICIOS[dia] || [];
+  if (!ejercicios.length) { form.innerHTML = '<p style="color:var(--muted);font-size:13px">No hay ejercicios para este día.</p>'; return; }
+  let html = `<div style="display:grid;grid-template-columns:1fr 100px 80px;gap:12px;margin-bottom:8px">
+    <span class="ejercicio-label" style="text-align:left">Ejercicio</span>
+    <span class="ejercicio-label">Peso (kg)</span>
+    <span class="ejercicio-label">Reps</span>
+  </div>`;
+  ejercicios.forEach((ej, i) => {
+    html += `<div class="ejercicio-row">
+      <div class="ejercicio-nombre">${ej}</div>
+      <input class="ejercicio-input" type="number" id="ej-${i}-peso" placeholder="—" step="0.5" min="0">
+      <input class="ejercicio-input" type="number" id="ej-${i}-reps" placeholder="—" step="1" min="0">
+    </div>`;
+  });
+  form.innerHTML = html;
+  btn.style.display = 'block';
+}
+
+async function guardarEntrenamiento() {
+  const btn = document.getElementById('btn-guardar-tr');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    const dia = document.getElementById('tr-dia').value;
+    if (!dia) { toast('Selecciona un día primero', 'err'); return; }
+    const ejercicios = ejerciciosPorDia[dia] || DIAS_EJERCICIOS[dia] || [];
+    const now = new Date();
+    const startDate = new Date(2026, 3, 27);
+    const diffDays = Math.floor((now - startDate) / (24*3600*1000));
+    const weekNum = Math.max(1, Math.floor(diffDays / 7) + 1);
+    const dateStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
+
+    const existing = await sheetsGet(`'${TAB_ENTRENAMIENTO}'!A4:A503`);
+    const emptyIdx = existing.findIndex(r => !r[0] || r[0] === '');
+    const targetRow = (emptyIdx >= 0 ? emptyIdx : existing.length) + 4;
+
+    const rows = [];
+    ejercicios.forEach((ej, i) => {
+      const peso = parseNum(document.getElementById(`ej-${i}-peso`)?.value);
+      const reps = parseNum(document.getElementById(`ej-${i}-reps`)?.value);
+      if (peso !== '' || reps !== '') rows.push([dateStr, weekNum, dia, ej, peso, reps, '']);
+    });
+
+    if (!rows.length) { toast('Introduce al menos un dato', 'err'); return; }
+    await sheetsUpdate(`'${TAB_ENTRENAMIENTO}'!A${targetRow}:G${targetRow + rows.length - 1}`, rows);
+    toast(`${rows.length} ejercicios guardados ✓`, 'ok');
+    ejercicios.forEach((_, i) => {
+      const p = document.getElementById(`ej-${i}-peso`);
+      const r = document.getElementById(`ej-${i}-reps`);
+      if (p) p.value = ''; if (r) r.value = '';
+    });
+    await loadTrainingData();
+  } catch(e) { toast('Error: ' + (e?.result?.error?.message || e?.message || ''), 'err'); console.error(e); }
+  finally { btn.disabled = false; btn.textContent = 'Guardar sesión'; }
+}
+
+async function loadTrainingData() {
+  try {
+    const data = await sheetsGet(`'${TAB_ENTRENAMIENTO}'!A4:G503`);
+    trainingData = data.filter(r => r[3] && r[3] !== '');
+    renderTrainingHistorial();
+    renderTrainingChart();
+  } catch(e) { console.warn('loadTrainingData:', e); }
+}
+
+function renderTrainingChart() {
+  const ejercicio = document.getElementById('tr-ejercicio-grafico')?.value;
+  const ctx = document.getElementById('training-chart');
+  if (!ctx) return;
+  if (trainingChart) { trainingChart.destroy(); trainingChart = null; }
+  if (!ejercicio) return;
+
+  const rows = trainingData.filter(r => String(r[3]||'').trim() === ejercicio && r[4] != null && r[4] !== '');
+  if (!rows.length) return;
+
+  const labels   = rows.map(r => String(r[0]||'S'+r[1]));
+  const pesoVals = rows.map(r => +r[4]);
+  const repsVals = rows.map(r => r[5] != null && r[5] !== '' ? +r[5] : null);
+  const avg = Math.round(pesoVals.reduce((a,b)=>a+b,0)/pesoVals.length * 10)/10;
+
+  trainingChart = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label:'Peso (kg)', data:pesoVals, borderColor:'#ff6b35', backgroundColor:'rgba(255,107,53,0.08)',
+        borderWidth:2.5, pointRadius:5, pointHoverRadius:8, pointBackgroundColor:'#ff6b35', tension:0.3, fill:true, yAxisID:'y' },
+      { label:'Reps', data:repsVals, borderColor:'#5b8fff', backgroundColor:'transparent',
+        borderWidth:1.5, borderDash:[4,3], pointRadius:3, pointHoverRadius:6, pointBackgroundColor:'#5b8fff',
+        tension:0.3, fill:false, yAxisID:'y2' },
+      { label:'Media peso', data:Array(pesoVals.length).fill(avg), borderColor:'rgba(255,107,53,0.4)',
+        borderWidth:1.5, borderDash:[8,4], pointRadius:0, fill:false, tension:0, yAxisID:'y' }
+    ]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: {
+        legend: { display:true, labels:{ color:'#6b7585', font:{family:'DM Mono',size:10}, boxWidth:12 } },
+        tooltip: {
+          backgroundColor:'#181c22', borderColor:'#2e3540', borderWidth:1,
+          titleColor:'#e8ecf0', titleFont:{family:'DM Mono',size:11}, bodyFont:{family:'DM Mono',size:11}, padding:12,
+          callbacks: { label: ctx => {
+            if (ctx.dataset.label==='Media peso') return ` Media: ${ctx.parsed.y} kg`;
+            if (ctx.dataset.label==='Peso (kg)') return ` Peso: ${ctx.parsed.y} kg`;
+            if (ctx.dataset.label==='Reps') return ` Reps: ${ctx.parsed.y}`;
+            return ctx.dataset.label+': '+ctx.parsed.y;
+          }}
+        }
+      },
+      scales: {
+        x: { grid:{color:'#222830'}, ticks:{color:'#6b7585',font:{family:'DM Mono',size:10},maxTicksLimit:12} },
+        y: { grid:{color:'#222830'}, ticks:{color:'#ff6b35',font:{family:'DM Mono',size:10},callback:v=>v+' kg'}, position:'left' },
+        y2: { grid:{drawOnChartArea:false}, ticks:{color:'#5b8fff',font:{family:'DM Mono',size:10},callback:v=>v+' reps'}, position:'right' }
+      }
+    }
+  });
+}
+
+function renderTrainingHistorial() {
+  const cont = document.getElementById('training-historial');
+  if (!cont) return;
+  if (!trainingData.length) {
+    cont.innerHTML = '<div class="empty-state"><span>🏋️</span><p>Aún no hay sesiones registradas.</p></div>';
+    return;
+  }
+  const byKey = {};
+  [...trainingData].reverse().slice(0,100).forEach(r => {
+    const key = String(r[0]||'')+'|'+String(r[2]||'');
+    if (!byKey[key]) byKey[key] = { fecha:r[0], semana:r[1], dia:r[2], ejercicios:[] };
+    byKey[key].ejercicios.push({ nombre:r[3], peso:r[4], reps:r[5] });
+  });
+  let html = '';
+  Object.values(byKey).slice(0,20).forEach(s => {
+    html += `<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px">${s.dia||'—'}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${String(s.fecha||'')} · Sem. ${s.semana||'?'}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">`;
+    s.ejercicios.forEach(ej => {
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface);border-radius:6px">
+        <span style="font-size:12px;color:var(--text)">${ej.nombre}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:12px;color:#ff6b35">
+          ${ej.peso!=null&&ej.peso!==''?ej.peso+' kg':'—'}${ej.reps!=null&&ej.reps!==''?' × '+ej.reps:''}
+        </span>
+      </div>`;
+    });
+    html += '</div></div>';
+  });
+  cont.innerHTML = html;
+}
+
 // ── UI ────────────────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -1450,6 +1700,9 @@ document.querySelectorAll('.tab').forEach(tab => {
     }
     if (tab.dataset.tab === 'historial') {
       setTimeout(() => { if(pesoChart) pesoChart.resize(); if(suenoChart) suenoChart.resize(); if(pasosChart) pasosChart.resize(); }, 50);
+    }
+    if (tab.dataset.tab === 'entrenamiento') {
+      setTimeout(() => { if(trainingChart) trainingChart.resize(); }, 50);
     }
   });
 });
