@@ -416,6 +416,7 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
           <div class="contorno-card" id="cc-gluteo"><div class="contorno-label">Glúteo</div><input class="contorno-input" type="number" id="c-gluteo" placeholder="—" step="0.1"></div>
           <div class="contorno-card" id="cc-muslo"><div class="contorno-label">Muslo</div><input class="contorno-input" type="number" id="c-muslo" placeholder="—" step="0.1"></div>
           <div class="contorno-card" id="cc-gemelo"><div class="contorno-label">Gemelo</div><input class="contorno-input" type="number" id="c-gemelo" placeholder="—" step="0.1"></div>
+          <div class="contorno-card"><div class="contorno-label">Kcal semana</div><input class="contorno-input" type="number" id="c-kcal" placeholder="—" step="1"></div>
           <div class="contorno-card"><div class="contorno-label">Fotos (nota)</div><input class="contorno-input" type="text" id="c-fotos" placeholder="Álbum / carpeta..." style="font-size:12px"></div>
         </div>
         <button class="btn-primary" onclick="guardarContornos()">Guardar contornos</button>
@@ -436,11 +437,11 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
       <div class="section-title">Seguimiento de entrenamiento</div>
       <div class="section-sub">Registra peso y repeticiones de la primera serie por ejercicio</div>
       <div class="card">
-        <div class="card-title">Registrar sesión</div>
+        <div class="card-title">Registrar ejercicio</div>
         <div class="form-grid">
           <div class="form-group">
             <label>Día de entrenamiento</label>
-            <select id="tr-dia" onchange="loadEjerciciosDelDia()">
+            <select id="tr-dia" onchange="onDiaChange()">
               <option value="">— Selecciona día —</option>
               <option>Día 1 · Pierna Fuerza</option>
               <option>Día 2 · Empuje</option>
@@ -449,9 +450,22 @@ tbody td{padding:10px 14px;color:var(--text);white-space:nowrap}
               <option>Día 5 · Brazos + Hombro</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>Ejercicio</label>
+            <select id="tr-ejercicio-sel">
+              <option value="">— Primero selecciona día —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Peso (kg)</label>
+            <input class="ejercicio-input" style="border-radius:var(--radius-sm);padding:10px 14px" type="number" id="tr-peso" placeholder="—" step="0.5" min="0">
+          </div>
+          <div class="form-group">
+            <label>Repeticiones</label>
+            <input class="ejercicio-input" style="border-radius:var(--radius-sm);padding:10px 14px" type="number" id="tr-reps" placeholder="—" step="1" min="0">
+          </div>
         </div>
-        <div id="ejercicios-form" style="margin-top:20px"></div>
-        <button class="btn-primary" id="btn-guardar-tr" onclick="guardarEntrenamiento()" style="display:none">Guardar sesión</button>
+        <button class="btn-primary" id="btn-guardar-tr" onclick="guardarEjercicio()">Guardar ejercicio</button>
       </div>
       <div class="card">
         <div class="card-title">Evolución de cargas</div>
@@ -989,8 +1003,7 @@ function renderHistorial(data) {
   }).slice(-30);
   if (!dataOnly.length) { cont.innerHTML = '<div class="empty-state"><span>📭</span><p>Aún no hay registros.</p></div>'; return; }
   let html = `<div class="table-wrap"><table><thead><tr>
-    <th>Fecha</th><th>Día</th><th>Prot.</th><th>Carb.</th><th>Grasas</th>
-    <th>Kcal</th><th>Peso</th><th>Sueño</th><th>Entreno</th><th>Pasos</th><th>Balance</th>
+    <th>Fecha</th><th>Día</th><th>Peso</th><th>Sueño</th><th>Entreno</th><th>Balance</th>
   </tr></thead><tbody>`;
   dataOnly.slice(-30).reverse().forEach(r => {
     const fecha = excelDateToStr(r[0]);
@@ -1003,14 +1016,9 @@ function renderHistorial(data) {
     html += `<tr>
       <td style="font-family:'DM Mono',monospace;font-size:12px">${fecha}</td>
       <td style="color:var(--muted);font-size:12px">${r[2]||''}</td>
-      <td style="color:var(--prot)">${r[3]!=null?(+r[3]).toFixed(1):'—'}</td>
-      <td style="color:var(--carb)">${r[4]!=null?(+r[4]).toFixed(1):'—'}</td>
-      <td style="color:var(--fat)">${r[5]!=null?(+r[5]).toFixed(1):'—'}</td>
-      <td style="color:var(--kcal);font-weight:600">${r[6]!=null?Math.round(+r[6]):'—'}</td>
       <td style="color:var(--weight);font-weight:600">${r[7]!=null?(+r[7]).toFixed(1):'—'}</td>
       <td style="color:var(--sleep)">${r[8]!=null?(+r[8]).toFixed(1)+'h':'—'}</td>
       <td style="color:${eColor};font-size:12px">${entreno}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:12px">${r[10]!=null?Math.round(+r[10]):'—'}</td>
       <td>${badgeBal}</td>
     </tr>`;
   });
@@ -1140,6 +1148,7 @@ async function loadContornos() {
     document.getElementById('c-gluteo').value  = wr[9]  || '';
     document.getElementById('c-muslo').value   = wr[10] || '';
     document.getElementById('c-gemelo').value  = wr[11] || '';
+    document.getElementById('c-kcal').value    = wr[12] || '';
     document.getElementById('c-fotos').value   = wr[13] || '';
   }
 }
@@ -1334,7 +1343,7 @@ async function guardarContornos() {
       parseNum(document.getElementById('c-gluteo').value),
       parseNum(document.getElementById('c-muslo').value),
       parseNum(document.getElementById('c-gemelo').value),
-      '',
+      document.getElementById('c-kcal').value ? parseNum(document.getElementById('c-kcal').value) : '',
       document.getElementById('c-fotos').value   || '',
     ];
     await sheetsUpdate(`'${TAB_CONTORNOS}'!D${sheetRow}:N${sheetRow}`, [vals]);
@@ -1535,36 +1544,33 @@ async function loadEjercicios() {
   }
 }
 
-function loadEjerciciosDelDia() {
+function onDiaChange() {
   const dia = document.getElementById('tr-dia').value;
-  const form = document.getElementById('ejercicios-form');
-  const btn  = document.getElementById('btn-guardar-tr');
-  if (!dia) { form.innerHTML = ''; btn.style.display = 'none'; return; }
+  const sel = document.getElementById('tr-ejercicio-sel');
+  sel.innerHTML = '<option value="">— Selecciona ejercicio —</option>';
+  if (!dia) return;
   const ejercicios = ejerciciosPorDia[dia] || DIAS_EJERCICIOS[dia] || [];
-  if (!ejercicios.length) { form.innerHTML = '<p style="color:var(--muted);font-size:13px">No hay ejercicios para este día.</p>'; return; }
-  let html = `<div style="display:grid;grid-template-columns:1fr 100px 80px;gap:12px;margin-bottom:8px">
-    <span class="ejercicio-label" style="text-align:left">Ejercicio</span>
-    <span class="ejercicio-label">Peso (kg)</span>
-    <span class="ejercicio-label">Reps</span>
-  </div>`;
-  ejercicios.forEach((ej, i) => {
-    html += `<div class="ejercicio-row">
-      <div class="ejercicio-nombre">${ej}</div>
-      <input class="ejercicio-input" type="number" id="ej-${i}-peso" placeholder="—" step="0.5" min="0">
-      <input class="ejercicio-input" type="number" id="ej-${i}-reps" placeholder="—" step="1" min="0">
-    </div>`;
+  ejercicios.forEach(ej => {
+    const opt = document.createElement('option');
+    opt.value = ej; opt.textContent = ej;
+    sel.appendChild(opt);
   });
-  form.innerHTML = html;
-  btn.style.display = 'block';
 }
 
-async function guardarEntrenamiento() {
+function loadEjerciciosDelDia() { onDiaChange(); }
+
+async function guardarEjercicio() {
   const btn = document.getElementById('btn-guardar-tr');
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
     const dia = document.getElementById('tr-dia').value;
-    if (!dia) { toast('Selecciona un día primero', 'err'); return; }
-    const ejercicios = ejerciciosPorDia[dia] || DIAS_EJERCICIOS[dia] || [];
+    const ej  = document.getElementById('tr-ejercicio-sel').value;
+    if (!dia) { toast('Selecciona un día', 'err'); return; }
+    if (!ej)  { toast('Selecciona un ejercicio', 'err'); return; }
+    const peso = parseNum(document.getElementById('tr-peso').value);
+    const reps = parseNum(document.getElementById('tr-reps').value);
+    if (peso === '' && reps === '') { toast('Introduce peso o repeticiones', 'err'); return; }
+
     const now = new Date();
     const startDate = new Date(2026, 3, 27);
     const diffDays = Math.floor((now - startDate) / (24*3600*1000));
@@ -1575,24 +1581,13 @@ async function guardarEntrenamiento() {
     const emptyIdx = existing.findIndex(r => !r[0] || r[0] === '');
     const targetRow = (emptyIdx >= 0 ? emptyIdx : existing.length) + 4;
 
-    const rows = [];
-    ejercicios.forEach((ej, i) => {
-      const peso = parseNum(document.getElementById(`ej-${i}-peso`)?.value);
-      const reps = parseNum(document.getElementById(`ej-${i}-reps`)?.value);
-      if (peso !== '' || reps !== '') rows.push([dateStr, weekNum, dia, ej, peso, reps, '']);
-    });
-
-    if (!rows.length) { toast('Introduce al menos un dato', 'err'); return; }
-    await sheetsUpdate(`'${TAB_ENTRENAMIENTO}'!A${targetRow}:G${targetRow + rows.length - 1}`, rows);
-    toast(`${rows.length} ejercicios guardados ✓`, 'ok');
-    ejercicios.forEach((_, i) => {
-      const p = document.getElementById(`ej-${i}-peso`);
-      const r = document.getElementById(`ej-${i}-reps`);
-      if (p) p.value = ''; if (r) r.value = '';
-    });
+    await sheetsUpdate(`'${TAB_ENTRENAMIENTO}'!A${targetRow}:G${targetRow}`, [[dateStr, weekNum, dia, ej, peso, reps, '']]);
+    toast(`${ej} guardado ✓`, 'ok');
+    document.getElementById('tr-peso').value = '';
+    document.getElementById('tr-reps').value = '';
     await loadTrainingData();
   } catch(e) { toast('Error: ' + (e?.result?.error?.message || e?.message || ''), 'err'); console.error(e); }
-  finally { btn.disabled = false; btn.textContent = 'Guardar sesión'; }
+  finally { btn.disabled = false; btn.textContent = 'Guardar ejercicio'; }
 }
 
 async function loadTrainingData() {
