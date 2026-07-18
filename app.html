@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fitness Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg:#0a0c0f;--surface:#111318;--card:#181c22;--border:#222830;--border2:#2e3540;
+  --text:#e8ecf0;--muted:#6b7585;--accent:#5b8fff;--accent2:#3ddc97;--warn:#ff6b6b;
+  --prot:#3ddc97;--carb:#5b8fff;--fat:#ffd166;--kcal:#ff6b6b;--weight:#c084fc;
+  --sleep:#7c4dff;--train:#00897b;--bf:#ff6b35;
+  --radius:12px;--radius-sm:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.6;min-height:100vh}
+
+/* AUTH */
+#auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:28px;padding:24px;background:radial-gradient(ellipse at 30% 20%,#1a2035 0%,var(--bg) 60%)}
+.logo-block{text-align:center}
+.logo-block h1{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(2rem,5vw,3rem);letter-spacing:-0.03em;background:linear-gradient(135deg,#5b8fff,#3ddc97);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.logo-block p{color:var(--muted);font-size:14px;margin-top:6px;font-family:'DM Mono',monospace}
+.auth-card{background:var(--card);border:1px solid var(--border2);border-radius:20px;padding:36px;width:100%;max-width:400px;display:flex;flex-direction:column;gap:16px}
+.auth-card h2{font-family:'Syne',sans-serif;font-weight:700;font-size:1.2rem}
+.auth-tabs{display:flex;gap:0;border:1px solid var(--border2);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:4px}
+.auth-tab{flex:1;padding:8px;text-align:center;font-size:13px;cursor:pointer;background:none;border:none;color:var(--muted);font-family:'DM Sans',sans-serif;transition:all .2s}
+.auth-tab.active{background:var(--accent);color:#fff;font-weight:600}
+.auth-input{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:11px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;width:100%;transition:border-color .2s}
+.auth-input:focus{border-color:var(--accent)}
+.auth-input::placeholder{color:var(--muted)}
+.btn-auth{background:linear-gradient(135deg,var(--accent),#4a7aee);color:#fff;border:none;border-radius:var(--radius);padding:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all .2s;width:100%}
+.btn-auth:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(91,143,255,.3)}
+.btn-auth:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.auth-msg{font-size:12px;text-align:center;padding:8px;border-radius:var(--radius-sm)}
+.auth-msg.err{background:rgba(255,107,107,.1);color:var(--warn)}
+.auth-msg.ok{background:rgba(61,220,151,.1);color:var(--accent2)}
+
+/* APP */
+#app{display:none;min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header-brand{font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;background:linear-gradient(135deg,#5b8fff,#3ddc97);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.user-pill{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border2);border-radius:999px;padding:5px 14px 5px 5px;font-size:12px;color:var(--muted)}
+.user-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+.btn-logout{background:none;border:1px solid var(--border2);color:var(--muted);border-radius:var(--radius-sm);padding:5px 10px;font-size:11px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif}
+.btn-logout:hover{border-color:var(--warn);color:var(--warn)}
+
+/* NAV */
+nav{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 24px;gap:4px;overflow-x:auto}
+.tab{padding:13px 16px;font-size:13px;font-weight:500;color:var(--muted);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s;font-family:'DM Sans',sans-serif}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* CONTENT */
+main{padding:24px;max-width:1100px;margin:0 auto}
+.section{display:none}
+.section.active{display:block}
+.section-title{font-family:'Syne',sans-serif;font-weight:700;font-size:1.4rem;margin-bottom:4px;letter-spacing:-0.02em}
+.section-sub{color:var(--muted);font-size:13px;margin-bottom:24px}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:18px}
+.card-title{font-family:'Syne',sans-serif;font-weight:600;font-size:.85rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:18px}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--c,var(--accent))}
+.stat-label{font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.stat-value{font-family:'Syne',sans-serif;font-weight:700;font-size:1.7rem;color:var(--c,var(--text));letter-spacing:-0.03em;line-height:1}
+.stat-unit{font-size:10px;color:var(--muted);margin-top:3px;font-family:'DM Mono',monospace}
+
+/* FORM */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group label{font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.form-group input,.form-group select{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:10px 12px;font-size:14px;font-family:'DM Sans',sans-serif;transition:border-color .2s;outline:none;width:100%}
+.form-group input:focus,.form-group select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,143,255,.1)}
+.form-group select option{background:var(--card)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#4a7aee);color:#fff;border:none;border-radius:var(--radius);padding:11px 24px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;margin-top:16px}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(91,143,255,.3)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* TABLE */
+.table-wrap{overflow-x:auto;border-radius:var(--radius-sm)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--surface);padding:9px 12px;text-align:left;font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+tbody tr:hover{background:rgba(255,255,255,.02)}
+tbody td{padding:9px 12px;color:var(--text);white-space:nowrap}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-family:'DM Mono',monospace;font-weight:500}
+.badge-pos{background:rgba(61,220,151,.15);color:var(--accent2)}
+.badge-neg{background:rgba(255,107,107,.15);color:var(--warn)}
+.badge-neu{background:rgba(107,117,133,.15);color:var(--muted)}
+
+/* CHART FILTERS */
+.chart-filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.chart-filter-btn{padding:4px 12px;border-radius:999px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;transition:all .2s;border:1px solid var(--border2);background:none;color:var(--muted)}
+.chart-filter-btn:hover{border-color:var(--accent);color:var(--accent)}
+.chart-filter-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* CONTORNOS */
+.contornos-layout{display:grid;grid-template-columns:1fr 200px;gap:20px;align-items:start}
+@media(max-width:900px){.contornos-layout{grid-template-columns:1fr}}
+.body-zone{cursor:pointer;transition:all .25s}
+.body-zone .zone-shape{transition:all .25s;fill:rgba(91,143,255,.12);stroke:rgba(91,143,255,.35);stroke-width:1.5}
+.body-zone:hover .zone-shape,.body-zone.active .zone-shape{fill:rgba(91,143,255,.35);stroke:#5b8fff;stroke-width:2}
+.body-zone .zone-label{font-family:'DM Mono',monospace;font-size:8px;fill:#6b7585;text-anchor:middle;transition:fill .2s;pointer-events:none}
+.body-zone:hover .zone-label,.body-zone.active .zone-label{fill:#e8ecf0}
+.body-zone[data-zone="cuello"].active .zone-shape,.body-zone[data-zone="cuello"].hover-highlight .zone-shape{fill:rgba(233,30,99,.4);stroke:#E91E63;filter:drop-shadow(0 0 6px rgba(233,30,99,.6))}
+.body-zone[data-zone="hombro"].active .zone-shape,.body-zone[data-zone="hombro"].hover-highlight .zone-shape{fill:rgba(156,39,176,.4);stroke:#9C27B0;filter:drop-shadow(0 0 6px rgba(156,39,176,.6))}
+.body-zone[data-zone="pecho"].active .zone-shape,.body-zone[data-zone="pecho"].hover-highlight .zone-shape{fill:rgba(103,58,183,.4);stroke:#673AB7;filter:drop-shadow(0 0 6px rgba(103,58,183,.6))}
+.body-zone[data-zone="biceps"].active .zone-shape,.body-zone[data-zone="biceps"].hover-highlight .zone-shape{fill:rgba(63,81,181,.4);stroke:#3F51B5;filter:drop-shadow(0 0 6px rgba(63,81,181,.6))}
+.body-zone[data-zone="abdomen"].active .zone-shape,.body-zone[data-zone="abdomen"].hover-highlight .zone-shape{fill:rgba(33,150,243,.4);stroke:#2196F3;filter:drop-shadow(0 0 6px rgba(33,150,243,.6))}
+.body-zone[data-zone="cintura"].active .zone-shape,.body-zone[data-zone="cintura"].hover-highlight .zone-shape{fill:rgba(0,188,212,.4);stroke:#00BCD4;filter:drop-shadow(0 0 6px rgba(0,188,212,.6))}
+.body-zone[data-zone="gluteo"].active .zone-shape,.body-zone[data-zone="gluteo"].hover-highlight .zone-shape{fill:rgba(0,150,136,.4);stroke:#009688;filter:drop-shadow(0 0 6px rgba(0,150,136,.6))}
+.body-zone[data-zone="muslo"].active .zone-shape,.body-zone[data-zone="muslo"].hover-highlight .zone-shape{fill:rgba(76,175,80,.4);stroke:#4CAF50;filter:drop-shadow(0 0 6px rgba(76,175,80,.6))}
+.body-zone[data-zone="gemelo"].active .zone-shape,.body-zone[data-zone="gemelo"].hover-highlight .zone-shape{fill:rgba(139,195,74,.4);stroke:#8BC34A;filter:drop-shadow(0 0 6px rgba(139,195,74,.6))}
+.body-zone .zone-label{font-size:7.5px}
+
+.legend-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.legend-pill{display:flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;border:1px solid var(--border2);font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;transition:all .2s;user-select:none}
+.legend-pill.hidden{opacity:.35;text-decoration:line-through}
+.legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+.contorno-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.contorno-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;display:flex;flex-direction:column;gap:6px}
+.contorno-label{font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.contorno-input{background:var(--card);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:7px 9px;font-size:13px;font-family:'DM Mono',monospace;outline:none;width:100%;transition:border-color .2s}
+.contorno-input:focus{border-color:var(--accent)}
+
+/* PERFIL */
+.perfil-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:600px){.perfil-grid{grid-template-columns:1fr}}
+.tmb-display{background:linear-gradient(135deg,rgba(91,143,255,.1),rgba(61,220,151,.1));border:1px solid var(--border2);border-radius:var(--radius);padding:24px;text-align:center}
+.tmb-label{font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.tmb-value{font-family:'Syne',sans-serif;font-weight:800;font-size:2.8rem;color:var(--accent2);letter-spacing:-0.04em;line-height:1}
+.tmb-unit{font-size:12px;color:var(--muted);margin-top:3px}
+.tdee-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px}
+.tdee-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;text-align:center}
+.tdee-item .lbl{font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:3px}
+.tdee-item .val{font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem}
+
+/* TRAINING */
+.ejercicio-input{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:10px 12px;font-size:13px;font-family:'DM Mono',monospace;outline:none;width:100%;text-align:center;transition:border-color .2s}
+.ejercicio-input:focus{border-color:var(--accent)}
+
+/* MISC */
+.loading-state{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;padding:28px 0;justify-content:center}
+.empty-state{text-align:center;padding:40px 0;color:var(--muted)}
+.empty-state span{font-size:1.8rem;display:block;margin-bottom:10px}
+.spinner{width:16px;height:16px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+#toast{position:fixed;bottom:24px;right:24px;background:var(--card);border:1px solid var(--border2);border-radius:var(--radius);padding:12px 18px;font-size:13px;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,.4);transform:translateY(80px);opacity:0;transition:all .3s cubic-bezier(.4,0,.2,1);z-index:1000;max-width:300px}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.ok{border-left:3px solid var(--accent2)}
+#toast.err{border-left:3px solid var(--warn)}
+@media(max-width:640px){main{padding:16px}header{padding:0 16px}nav{padding:0 16px}.stats-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth-screen">
+  <div class="logo-block">
+    <h1>Fitness Tracker</h1>
+    <p>Tu seguimiento personal de forma y físico</p>
+  </div>
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuthTab('login')">Iniciar sesión</button>
+      <button class="auth-tab" onclick="switchAuthTab('register')">Registrarse</button>
+    </div>
+    <div id="auth-form-login">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <input class="auth-input" type="email" id="login-email" placeholder="Email">
+        <input class="auth-input" type="password" id="login-pass" placeholder="Contraseña">
+      </div>
+      <button class="btn-auth" style="margin-top:14px" onclick="handleLogin()">Entrar</button>
+    </div>
+    <div id="auth-form-register" style="display:none">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <input class="auth-input" type="email" id="reg-email" placeholder="Email">
+        <input class="auth-input" type="password" id="reg-pass" placeholder="Contraseña (mín. 6 caracteres)">
+      </div>
+      <button class="btn-auth" style="margin-top:14px" onclick="handleRegister()">Crear cuenta</button>
+    </div>
+    <div id="auth-msg" style="display:none" class="auth-msg"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <span class="header-brand">Fitness Tracker</span>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="user-pill">
+        <div class="user-avatar" id="user-initial">?</div>
+        <span id="user-email-display">—</span>
+      </div>
+      <button class="btn-logout" onclick="handleLogout()">Salir</button>
+    </div>
+  </header>
+
+  <nav>
+    <button class="tab active" data-tab="hoy">Registro diario</button>
+    <button class="tab" data-tab="historial">Historial</button>
+    <button class="tab" data-tab="contornos">Contornos</button>
+    <button class="tab" data-tab="entrenamiento">Entrenamiento</button>
+    <button class="tab" data-tab="resumen">Resumen semanal</button>
+    <button class="tab" data-tab="perfil">Perfil & TMB</button>
+  </nav>
+
+  <main>
+
+    <!-- HOY -->
+    <div class="section active" id="tab-hoy">
+      <div class="section-title">Registro de hoy</div>
+      <div class="section-sub" id="fecha-hoy">—</div>
+      <div class="stats-grid">
+        <div class="stat-card" style="--c:var(--weight)"><div class="stat-label">Peso</div><div class="stat-value" id="s-peso">—</div><div class="stat-unit">kg</div></div>
+        <div class="stat-card" style="--c:var(--sleep)"><div class="stat-label">Sueño</div><div class="stat-value" id="s-sueno">—</div><div class="stat-unit">horas</div></div>
+        <div class="stat-card" style="--c:var(--train)"><div class="stat-label">Entrenamiento</div><div class="stat-value" id="s-entreno" style="font-size:1.1rem;padding-top:6px">—</div><div class="stat-unit"> </div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Introducir datos</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Peso (kg)</label><input type="number" id="f-peso" placeholder="70,0" step="0.1"></div>
+          <div class="form-group"><label>Sueño (h)</label><input type="number" id="f-sueno" placeholder="7,5" step="0.5"></div>
+          <div class="form-group"><label>Entrenamiento</label>
+            <select id="f-entreno">
+              <option value="">— Sin registrar —</option>
+              <option>Fuerza</option><option>Cardio</option><option>Mixto</option><option>Descanso</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Notas</label><input type="text" id="f-notas" placeholder="Opcional..."></div>
+        </div>
+        <button class="btn-primary" id="btn-guardar-diario" onclick="guardarDiario()">Guardar</button>
+      </div>
+    </div>
+
+    <!-- HISTORIAL -->
+    <div class="section" id="tab-historial">
+      <div class="section-title">Historial</div>
+      <div class="section-sub">Evolución del peso y registro diario</div>
+      <div class="card">
+        <div class="card-title">Evolución del peso corporal</div>
+        <div class="chart-filters" id="filters-peso">
+          <button class="chart-filter-btn active" onclick="setFilter('peso',30,this)">30 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('peso',60,this)">60 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('peso',90,this)">90 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('peso',0,this)">Todo</button>
+        </div>
+        <div style="position:relative;height:230px"><canvas id="peso-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Evolución del sueño</div>
+        <div class="chart-filters" id="filters-sueno">
+          <button class="chart-filter-btn active" onclick="setFilter('sueno',30,this)">30 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('sueno',60,this)">60 días</button>
+          <button class="chart-filter-btn" onclick="setFilter('sueno',0,this)">Todo</button>
+        </div>
+        <div style="position:relative;height:190px"><canvas id="sueno-chart"></canvas></div>
+      </div>
+      <div class="card" style="padding:0">
+        <div style="padding:22px 22px 8px"><div class="card-title" style="margin-bottom:0">Registros diarios</div></div>
+        <div id="historial-content" style="max-height:380px;overflow-y:auto;padding:0 22px 22px">
+          <div class="loading-state"><div class="spinner"></div> Cargando...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTORNOS -->
+    <div class="section" id="tab-contornos">
+      <div class="section-title">Contornos corporales</div>
+      <div class="section-sub">Haz clic en una zona para filtrar el gráfico</div>
+      <div class="card">
+        <div class="card-title">Evolución de contornos</div>
+        <div class="chart-filters" id="filters-contornos">
+          <button class="chart-filter-btn active" onclick="setFilter('contornos',12,this)">12 sem.</button>
+          <button class="chart-filter-btn" onclick="setFilter('contornos',24,this)">24 sem.</button>
+          <button class="chart-filter-btn" onclick="setFilter('contornos',0,this)">Todo</button>
+        </div>
+        <div class="legend-pills" id="legend-pills"></div>
+        <div style="display:grid;grid-template-columns:1fr 180px;gap:20px;align-items:center">
+          <div style="position:relative;height:300px"><canvas id="contornos-chart"></canvas></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+            <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Toca para filtrar</div>
+            <svg id="body-svg" viewBox="0 0 160 420" width="150" height="390" style="overflow:visible">
+              <g opacity="0.08" fill="#5b8fff">
+                <ellipse cx="80" cy="28" rx="22" ry="26"/>
+                <rect x="55" y="52" width="50" height="8" rx="4"/>
+                <path d="M55 60 Q40 80 38 130 L52 130 Q54 90 58 75 L58 175 L70 175 L70 60Z"/>
+                <path d="M105 60 Q120 80 122 130 L108 130 Q106 90 102 75 L102 175 L90 175 L90 60Z"/>
+                <rect x="58" y="60" width="44" height="115" rx="3"/>
+                <path d="M58 175 L52 270 L66 270 L72 210 L88 210 L94 270 L108 270 L102 175Z"/>
+                <path d="M52 270 L50 360 L64 360 L66 270Z"/>
+                <path d="M108 270 L110 360 L96 360 L94 270Z"/>
+                <ellipse cx="57" cy="360" rx="12" ry="8"/>
+                <ellipse cx="103" cy="360" rx="12" ry="8"/>
+              </g>
+              <g class="body-zone" data-zone="cuello" onclick="toggleZone('cuello')"><ellipse class="zone-shape" cx="80" cy="54" rx="16" ry="8"/><text class="zone-label" x="80" y="57">CUELLO</text></g>
+              <g class="body-zone" data-zone="hombro" onclick="toggleZone('hombro')"><ellipse class="zone-shape" cx="80" cy="70" rx="36" ry="10"/><text class="zone-label" x="80" y="73">HOMBRO</text></g>
+              <g class="body-zone" data-zone="pecho" onclick="toggleZone('pecho')"><rect class="zone-shape" x="57" y="82" width="46" height="28" rx="8"/><text class="zone-label" x="80" y="100">PECHO</text></g>
+              <g class="body-zone" data-zone="biceps" onclick="toggleZone('biceps')"><ellipse class="zone-shape" cx="42" cy="105" rx="11" ry="20"/><ellipse class="zone-shape" cx="118" cy="105" rx="11" ry="20"/><text class="zone-label" x="80" y="108">BÍCEPS</text></g>
+              <g class="body-zone" data-zone="cintura" onclick="toggleZone('cintura')"><rect class="zone-shape" x="61" y="112" width="38" height="22" rx="6"/><text class="zone-label" x="80" y="127">CINTURA</text></g>
+              <g class="body-zone" data-zone="abdomen" onclick="toggleZone('abdomen')"><rect class="zone-shape" x="58" y="136" width="44" height="30" rx="6"/><text class="zone-label" x="80" y="155">ABDOMEN</text></g>
+              <g class="body-zone" data-zone="gluteo" onclick="toggleZone('gluteo')"><rect class="zone-shape" x="57" y="168" width="46" height="28" rx="8"/><text class="zone-label" x="80" y="186">GLÚTEO</text></g>
+              <g class="body-zone" data-zone="muslo" onclick="toggleZone('muslo')"><rect class="zone-shape" x="57" y="198" width="20" height="52" rx="8"/><rect class="zone-shape" x="83" y="198" width="20" height="52" rx="8"/><text class="zone-label" x="80" y="228">MUSLO</text></g>
+              <g class="body-zone" data-zone="gemelo" onclick="toggleZone('gemelo')"><rect class="zone-shape" x="59" y="270" width="17" height="46" rx="7"/><rect class="zone-shape" x="84" y="270" width="17" height="46" rx="7"/><text class="zone-label" x="80" y="297">GEMELO</text></g>
+            </svg>
+            <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;font-style:italic;text-align:center" id="zone-hint">Clic para mostrar/ocultar</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Registro semanal</div>
+        <div class="contorno-grid">
+          <div class="contorno-card"><div class="contorno-label">Cuello</div><input class="contorno-input" type="number" id="c-cuello" placeholder="—" step="0.1"></div>
+          <div class="contorno-card"><div class="contorno-label">Hombro</div><input class="contorno-input" type="number" id="c-hombro" placeholder="—" step="0.1"></div>
+          <div class="contorno-card"><div class="contorno-label">Pecho</div><input class="contorno-input" type="number" id="c-pecho" placeholder="—" step="0.1"></div>
+          <div class="contorno-card"><div class="contorno-label">Bíceps</div><input class="contorno-input" type="number" id="c-biceps" placeholder="—" step="0.1"></div>
+          <div class="contorno-card"><div class="contorno-label">Abdomen</div><input class="contorno-input" type="number" id="c-abdomen" placeholder="—" step="0.1"></div>
+          <div class="contorno-card"><div class="contorno-label">Cintura</div><input class="contorno-input" type="number" id="c-cintura" placeholder="—" step="0.1"></div>
+          <div class="contorno-card"><div class="contorno-label">Glúteo</div><input class="contorno-input" type="number" id="c-gluteo" placeholder="—" step="0.1"></div>
+          <div class="contorno-card"><div class="contorno-label">Muslo</div><input class="contorno-input" type="number" id="c-muslo" placeholder="—" step="0.1"></div>
+          <div class="contorno-card"><div class="contorno-label">Gemelo</div><input class="contorno-input" type="number" id="c-gemelo" placeholder="—" step="0.1"></div>
+          <div class="contorno-card"><div class="contorno-label">Kcal semana</div><input class="contorno-input" type="number" id="c-kcal" placeholder="—" step="1"></div>
+          <div class="contorno-card"><div class="contorno-label">Fotos</div><input class="contorno-input" type="text" id="c-fotos" placeholder="Álbum..." style="font-size:11px"></div>
+        </div>
+        <button class="btn-primary" onclick="guardarContornos()">Guardar contornos</button>
+      </div>
+      <div class="card" style="padding:0">
+        <div style="padding:22px 22px 8px"><div class="card-title" style="margin-bottom:0">Historial de contornos</div></div>
+        <div id="contornos-historial" style="max-height:340px;overflow-y:auto;padding:0 22px 22px">
+          <div class="loading-state"><div class="spinner"></div> Cargando...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ENTRENAMIENTO -->
+    <div class="section" id="tab-entrenamiento">
+      <div class="section-title">Seguimiento de entrenamiento</div>
+      <div class="section-sub">Registra peso y repeticiones de la primera serie</div>
+      <div class="card">
+        <div class="card-title">Registrar ejercicio</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Día</label>
+            <select id="tr-dia" onchange="onDiaChange()">
+              <option value="">— Selecciona día —</option>
+              <option>Día 1 · Pierna Fuerza</option>
+              <option>Día 2 · Empuje</option>
+              <option>Día 3 · Tirón</option>
+              <option>Día 4 · Pierna Hipertrofia</option>
+              <option>Día 5 · Brazos + Hombro</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Ejercicio</label>
+            <select id="tr-ejercicio-sel"><option value="">— Primero selecciona día —</option></select>
+          </div>
+          <div class="form-group"><label>Peso (kg)</label><input class="ejercicio-input" style="border-radius:var(--radius-sm);padding:10px 12px" type="number" id="tr-peso" placeholder="—" step="0.5" min="0"></div>
+          <div class="form-group"><label>Repeticiones</label><input class="ejercicio-input" style="border-radius:var(--radius-sm);padding:10px 12px" type="number" id="tr-reps" placeholder="—" step="1" min="0"></div>
+        </div>
+        <button class="btn-primary" onclick="guardarEjercicio()">Guardar ejercicio</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Evolución de cargas</div>
+        <div class="form-grid" style="margin-bottom:14px">
+          <div class="form-group">
+            <label>Ejercicio</label>
+            <select id="tr-ejercicio-grafico" onchange="renderTrainingChart()"><option value="">— Selecciona ejercicio —</option></select>
+          </div>
+        </div>
+        <div style="position:relative;height:260px"><canvas id="training-chart"></canvas></div>
+      </div>
+      <div class="card" style="padding:0">
+        <div style="padding:22px 22px 8px"><div class="card-title" style="margin-bottom:0">Historial de sesiones</div></div>
+        <div id="training-historial" style="max-height:380px;overflow-y:auto;padding:0 22px 22px">
+          <div class="loading-state"><div class="spinner"></div> Cargando...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESUMEN -->
+    <div class="section" id="tab-resumen">
+      <div class="section-title">Resumen semanal</div>
+      <div class="section-sub">Medias semanales de peso y sueño</div>
+      <div class="card" style="padding:0">
+        <div id="resumen-content" style="max-height:500px;overflow-y:auto;padding:22px">
+          <div class="loading-state"><div class="spinner"></div> Cargando...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PERFIL -->
+    <div class="section" id="tab-perfil">
+      <div class="section-title">Perfil & TMB</div>
+      <div class="section-sub">Tasa Metabólica Basal — Mifflin-St Jeor</div>
+      <div class="perfil-grid">
+        <div class="card">
+          <div class="card-title">Tus datos</div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="form-group"><label>Nombre</label><input type="text" id="p-nombre" placeholder="Tu nombre"></div>
+            <div class="form-group"><label>Sexo</label><select id="p-sexo"><option value="H">Hombre</option><option value="M">Mujer</option></select></div>
+            <div class="form-group"><label>Fecha de nacimiento</label><input type="date" id="p-fecha"></div>
+            <div class="form-group"><label>Altura (cm)</label><input type="number" id="p-altura" placeholder="175"></div>
+            <div class="form-group"><label>Nivel de actividad</label>
+              <select id="p-actividad" onchange="calcTMB()">
+                <option value="1.2">Sedentario</option>
+                <option value="1.375" selected>Ligero (1-3 días/semana)</option>
+                <option value="1.55">Moderado (3-5 días/semana)</option>
+                <option value="1.725">Activo (6-7 días/semana)</option>
+                <option value="1.9">Muy activo</option>
+              </select>
+            </div>
+            <button class="btn-primary" style="margin-top:4px" onclick="guardarPerfil()">Guardar perfil</button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="tmb-display">
+            <div class="tmb-label">TMB — Tasa Metabólica Basal</div>
+            <div class="tmb-value" id="tmb-val">—</div>
+            <div class="tmb-unit">kcal/día en reposo absoluto</div>
+            <div class="tdee-row">
+              <div class="tdee-item"><div class="lbl">TDEE</div><div class="val" id="tdee-val" style="color:var(--accent)">—</div><div style="font-size:9px;color:var(--muted);margin-top:2px">kcal totales</div></div>
+              <div class="tdee-item"><div class="lbl">Déficit −250</div><div class="val" id="deficit-val" style="color:var(--warn)">—</div><div style="font-size:9px;color:var(--muted);margin-top:2px">perder peso</div></div>
+              <div class="tdee-item"><div class="lbl">Mantenimiento</div><div class="val" id="mant-val" style="color:var(--accent2)">—</div><div style="font-size:9px;color:var(--muted);margin-top:2px">kcal/día</div></div>
+              <div class="tdee-item"><div class="lbl">Superávit +250</div><div class="val" id="super-val" style="color:var(--prot)">—</div><div style="font-size:9px;color:var(--muted);margin-top:2px">ganar masa</div></div>
+            </div>
+          </div>
+          <div class="card" style="margin-bottom:0">
+            <div class="card-title">Ratio Cintura / Cadera</div>
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
+              <div style="text-align:center">
+                <div id="ratio-val" style="font-family:'Syne',sans-serif;font-weight:800;font-size:2rem;color:#c2185b">—</div>
+              </div>
+              <div>
+                <div id="ratio-badge" style="font-size:12px;font-weight:600;margin-bottom:4px">—</div>
+                <div style="font-size:10px;color:var(--muted);line-height:1.6"><span style="color:var(--accent2)">H</span> &lt;0.90 bajo · 0.90–0.99 mod. · ≥1.0 alto<br><span style="color:var(--accent2)">M</span> &lt;0.80 bajo · 0.80–0.84 mod. · ≥0.85 alto</div>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="margin-bottom:0">
+            <div class="card-title">% Graso estimado</div>
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">
+              <div id="bf-val" style="font-family:'Syne',sans-serif;font-weight:800;font-size:2rem;color:#ff6b35">—</div>
+              <div>
+                <div id="bf-badge" style="font-size:12px;font-weight:600;margin-bottom:4px">—</div>
+                <div style="font-size:10px;color:var(--muted)">Fórmula Marina EE.UU. · ±3-4%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+<div id="toast"></div>
+
+<script>
+// ── SUPABASE ──────────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://jharhdwgynsppquhyvlm.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpoYXJoZHdneW5zcHBxdWh5dmxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTIzMjUsImV4cCI6MjA5OTcyODMyNX0.WZ8QKkQ5B_cNUXQtvF-PyTgwZKDPJm82h3mtoH3KzGM';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let registrosData = [];
+let contornosData = [];
+let trainingData  = [];
+let perfilData    = {};
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+function switchAuthTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach((t,i) => t.classList.toggle('active', (i===0&&tab==='login')||(i===1&&tab==='register')));
+  document.getElementById('auth-form-login').style.display    = tab==='login'    ? 'block' : 'none';
+  document.getElementById('auth-form-register').style.display = tab==='register' ? 'block' : 'none';
+  document.getElementById('auth-msg').style.display = 'none';
+}
+
+function showAuthMsg(msg, type='err') {
+  const el = document.getElementById('auth-msg');
+  el.textContent = msg; el.className = 'auth-msg ' + type; el.style.display = 'block';
+}
+
+async function handleLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  if (!email || !pass) { showAuthMsg('Introduce email y contraseña'); return; }
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { showAuthMsg(error.message); return; }
+  currentUser = data.user;
+  showApp();
+}
+
+async function handleRegister() {
+  const email = document.getElementById('reg-email').value.trim();
+  const pass  = document.getElementById('reg-pass').value;
+  if (!email || !pass) { showAuthMsg('Introduce email y contraseña'); return; }
+  if (pass.length < 6) { showAuthMsg('La contraseña debe tener al menos 6 caracteres'); return; }
+  const { data, error } = await sb.auth.signUp({ email, password: pass });
+  if (error) { showAuthMsg(error.message); return; }
+  showAuthMsg('¡Cuenta creada! Revisa tu email para confirmar.', 'ok');
+}
+
+async function handleLogout() {
+  await sb.auth.signOut();
+  currentUser = null;
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  const email = currentUser?.email || '';
+  document.getElementById('user-email-display').textContent = email.split('@')[0];
+  document.getElementById('user-initial').textContent = email[0]?.toUpperCase() || '?';
+  document.getElementById('fecha-hoy').textContent = todayStr();
+  loadAll();
+  populateExerciseSelectors();
+}
+
+// Check existing session on load
+sb.auth.getSession().then(({ data }) => {
+  if (data.session) { currentUser = data.session.user; showApp(); }
+});
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function todayStr() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function parseNum(val) {
+  if (val === '' || val == null) return null;
+  const n = parseFloat(String(val).replace(',', '.'));
+  return isNaN(n) ? null : n;
+}
+function uid() { return currentUser?.id; }
+
+// ── LOAD ALL ──────────────────────────────────────────────────────────────────
+async function loadAll() {
+  await Promise.all([loadRegistros(), loadContornos(), loadTraining(), loadPerfil(), loadResumen()]);
+}
+
+// ── REGISTRO DIARIO ───────────────────────────────────────────────────────────
+async function loadRegistros() {
+  const { data } = await sb.from('registros_diarios').select('*').eq('user_id', uid()).order('fecha', { ascending: true });
+  registrosData = data || [];
+  const today = registrosData.find(r => r.fecha === todayISO());
+  if (today) {
+    document.getElementById('f-peso').value   = today.peso   || '';
+    document.getElementById('f-sueno').value  = today.sueno  || '';
+    document.getElementById('f-entreno').value= today.entreno|| '';
+    document.getElementById('f-notas').value  = today.notas  || '';
+    document.getElementById('s-peso').textContent   = today.peso   ? (+today.peso).toFixed(1)  : '—';
+    document.getElementById('s-sueno').textContent  = today.sueno  ? (+today.sueno).toFixed(1) : '—';
+    document.getElementById('s-entreno').textContent= today.entreno|| '—';
+  }
+  renderPesoChart(); renderSuenoChart(); renderHistorial();
+}
+
+async function guardarDiario() {
+  const btn = document.getElementById('btn-guardar-diario');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    const peso    = parseNum(document.getElementById('f-peso').value);
+    const sueno   = parseNum(document.getElementById('f-sueno').value);
+    const entreno = document.getElementById('f-entreno').value || null;
+    const notas   = document.getElementById('f-notas').value  || null;
+    const fecha   = todayISO();
+    const { error } = await sb.from('registros_diarios').upsert({
+      user_id: uid(), fecha, peso, sueno, entreno, notas
+    }, { onConflict: 'user_id,fecha' });
+    if (error) throw error;
+    toast('¡Guardado! ✓', 'ok');
+    await loadRegistros();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = 'Guardar'; }
+}
+
+function renderHistorial() {
+  const cont = document.getElementById('historial-content');
+  const rows = [...registrosData].reverse().slice(0, 60);
+  if (!rows.length) { cont.innerHTML = '<div class="empty-state"><span>📭</span><p>Sin registros aún.</p></div>'; return; }
+  let html = `<div class="table-wrap"><table><thead><tr>
+    <th>Fecha</th><th>Peso</th><th>Sueño</th><th>Entreno</th>
+  </tr></thead><tbody>`;
+  rows.forEach(r => {
+    const eColor = {Fuerza:'var(--train)',Cardio:'var(--accent)',Mixto:'var(--fat)',Descanso:'var(--muted)'}[r.entreno]||'var(--muted)';
+    html += `<tr>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${r.fecha||'—'}</td>
+      <td style="color:var(--weight);font-weight:600">${r.peso!=null?(+r.peso).toFixed(1):'—'}</td>
+      <td style="color:var(--sleep)">${r.sueno!=null?(+r.sueno).toFixed(1)+'h':'—'}</td>
+      <td style="color:${eColor};font-size:12px">${r.entreno||'—'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  cont.innerHTML = html;
+}
+
+// ── CHARTS ────────────────────────────────────────────────────────────────────
+let pesoChart=null, suenoChart=null, contornosChart=null, trainingChart=null;
+const chartFilters = { peso:30, sueno:30, contornos:12 };
+
+function setFilter(chart, n, btn) {
+  chartFilters[chart] = n;
+  document.querySelectorAll(`#filters-${chart} .chart-filter-btn`).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (chart==='peso')      renderPesoChart();
+  if (chart==='sueno')     renderSuenoChart();
+  if (chart==='contornos') renderContornosChart();
+}
+
+function buildLineChart(canvasId, labels, datasets, yLabel='', destroyRef=null) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return null;
+  if (destroyRef) destroyRef.destroy();
+  return new Chart(ctx.getContext('2d'), {
+    type:'line', data:{labels, datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display: datasets.length > 1, labels:{color:'#6b7585',font:{family:'DM Mono',size:10},boxWidth:10} },
+        tooltip:{backgroundColor:'#181c22',borderColor:'#2e3540',borderWidth:1,titleColor:'#e8ecf0',bodyColor:'#6b7585',titleFont:{family:'DM Mono',size:11},bodyFont:{family:'DM Mono',size:11},padding:10}
+      },
+      scales:{
+        x:{grid:{color:'#222830'},ticks:{color:'#6b7585',font:{family:'DM Mono',size:10},maxTicksLimit:10}},
+        y:{grid:{color:'#222830'},ticks:{color:'#6b7585',font:{family:'DM Mono',size:10},callback:v=>(+v).toFixed(1)+(yLabel?' '+yLabel:'')}}
+      }
+    }
+  });
+}
+
+function renderPesoChart() {
+  const n = chartFilters.peso;
+  const all = registrosData.filter(r => r.peso != null);
+  const rows = n > 0 ? all.slice(-n) : all;
+  const values = rows.map(r => +r.peso);
+  const avg = values.length ? Math.round(values.reduce((a,b)=>a+b,0)/values.length*10)/10 : 0;
+  pesoChart = buildLineChart('peso-chart', rows.map(r=>r.fecha), [
+    {label:'Peso (kg)',data:values,borderColor:'#c084fc',backgroundColor:'rgba(192,132,252,0.08)',borderWidth:2.5,pointRadius:3,pointHoverRadius:7,pointBackgroundColor:'#c084fc',tension:0.4,fill:true},
+    {label:'Media',data:Array(values.length).fill(avg),borderColor:'#e040fb',borderWidth:2,borderDash:[8,4],pointRadius:0,fill:false,tension:0}
+  ], 'kg', pesoChart);
+}
+
+function renderSuenoChart() {
+  const n = chartFilters.sueno;
+  const all = registrosData.filter(r => r.sueno != null);
+  const rows = n > 0 ? all.slice(-n) : all;
+  const values = rows.map(r => +r.sueno);
+  const avg = values.length ? Math.round(values.reduce((a,b)=>a+b,0)/values.length*10)/10 : 0;
+  const ctx = document.getElementById('sueno-chart');
+  if (!ctx) return;
+  if (suenoChart) suenoChart.destroy();
+  suenoChart = new Chart(ctx.getContext('2d'), {
+    type:'bar', data:{labels:rows.map(r=>r.fecha), datasets:[
+      {label:'Sueño (h)',data:values,backgroundColor:values.map(v=>v>=7?'rgba(124,77,255,0.7)':v>=6?'rgba(124,77,255,0.4)':'rgba(255,107,107,0.5)'),borderColor:values.map(v=>v>=7?'#7c4dff':v>=6?'#9c7dff':'#ff6b6b'),borderWidth:1,borderRadius:4,order:2},
+      {label:'Media',data:Array(values.length).fill(avg),borderColor:'#b39ddb',backgroundColor:'transparent',borderWidth:2,borderDash:[8,4],pointRadius:0,fill:false,tension:0,type:'line',order:1}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#181c22',borderColor:'#2e3540',borderWidth:1,titleColor:'#e8ecf0',bodyFont:{family:'DM Mono',size:11},padding:10}},
+    scales:{x:{grid:{color:'#222830'},ticks:{color:'#6b7585',font:{family:'DM Mono',size:10},maxTicksLimit:12}},y:{grid:{color:'#222830'},ticks:{color:'#6b7585',font:{family:'DM Mono',size:10},callback:v=>v+'h'},min:0}}}
+  });
+}
+
+// ── CONTORNOS ─────────────────────────────────────────────────────────────────
+const ZONES = [
+  {key:'cuello', label:'Cuello', color:'#E91E63', field:'cuello'},
+  {key:'hombro', label:'Hombro', color:'#9C27B0', field:'hombro'},
+  {key:'pecho',  label:'Pecho',  color:'#673AB7', field:'pecho'},
+  {key:'biceps', label:'Bíceps', color:'#3F51B5', field:'biceps'},
+  {key:'cintura',label:'Cintura',color:'#00BCD4', field:'cintura'},
+  {key:'abdomen',label:'Abdomen',color:'#2196F3', field:'abdomen'},
+  {key:'gluteo', label:'Glúteo', color:'#009688', field:'gluteo'},
+  {key:'muslo',  label:'Muslo',  color:'#4CAF50', field:'muslo'},
+  {key:'gemelo', label:'Gemelo', color:'#8BC34A', field:'gemelo'},
+];
+const activeZones = new Set(ZONES.map(z=>z.key));
+
+async function loadContornos() {
+  const { data } = await sb.from('contornos').select('*').eq('user_id', uid()).order('semana', { ascending: true });
+  contornosData = data || [];
+  buildLegendPills();
+  renderContornosChart();
+  renderContornosHistorial();
+
+  // Load current week
+  const now = new Date(), start = new Date(2026,3,27);
+  const weekNum = Math.max(1, Math.floor((now-start)/(7*24*3600*1000))+1);
+  const wr = contornosData.find(r => +r.semana === weekNum);
+  if (wr) {
+    ZONES.forEach(z => { document.getElementById(`c-${z.key}`).value = wr[z.field] || ''; });
+    document.getElementById('c-kcal').value  = wr.kcal   || '';
+    document.getElementById('c-fotos').value = wr.fotos  || '';
+  }
+
+  // Ratio & BF
+  const withRatio = contornosData.filter(r => r.cintura && r.gluteo);
+  if (withRatio.length) {
+    const last = withRatio[withRatio.length-1];
+    const ratio = last.cintura / last.gluteo;
+    document.getElementById('ratio-val').textContent = ratio.toFixed(2);
+    const sexo = document.getElementById('p-sexo')?.value || 'H';
+    const [riesgo, color] = sexo==='H'
+      ? ratio<0.90?['Bajo riesgo','var(--accent2)']:ratio<1.0?['Riesgo moderado','var(--fat)']:['Riesgo alto','var(--warn)']
+      : ratio<0.80?['Bajo riesgo','var(--accent2)']:ratio<0.85?['Riesgo moderado','var(--fat)']:['Riesgo alto','var(--warn)'];
+    const badge = document.getElementById('ratio-badge');
+    badge.textContent = riesgo; badge.style.color = color;
+  }
+  calcBodyFat();
+}
+
+function calcBodyFat() {
+  const altura = parseFloat(document.getElementById('p-altura')?.value)||0;
+  const sexo = document.getElementById('p-sexo')?.value||'H';
+  const withBF = contornosData.filter(r => r.cuello && r.abdomen);
+  if (!withBF.length || !altura) return;
+  const last = withBF[withBF.length-1];
+  let bf;
+  if (sexo==='H') {
+    if (last.abdomen <= last.cuello) return;
+    bf = 495/(1.0324-0.19077*Math.log10(last.abdomen-last.cuello)+0.15456*Math.log10(altura))-450;
+  } else {
+    if ((last.cintura+last.gluteo) <= last.cuello) return;
+    bf = 495/(1.29579-0.35004*Math.log10((last.cintura||0)+(last.gluteo||0)-last.cuello)+0.22100*Math.log10(altura))-450;
+  }
+  if (isNaN(bf)||bf<=0||bf>=60) return;
+  document.getElementById('bf-val').textContent = bf.toFixed(1)+'%';
+  const [bfLabel,bfColor] = sexo==='H'
+    ? bf<8?['Atlético','var(--accent2)']:bf<20?['Fitness','var(--accent)']:bf<25?['Aceptable','var(--fat)']:['Obesidad','var(--warn)']
+    : bf<15?['Atlético','var(--accent2)']:bf<25?['Fitness','var(--accent)']:bf<32?['Aceptable','var(--fat)']:['Obesidad','var(--warn)'];
+  const badge = document.getElementById('bf-badge');
+  badge.textContent = bfLabel; badge.style.color = bfColor;
+}
+
+function buildLegendPills() {
+  const container = document.getElementById('legend-pills');
+  container.innerHTML = '';
+  ZONES.forEach(z => {
+    const pill = document.createElement('div');
+    pill.className = 'legend-pill' + (activeZones.has(z.key)?'':' hidden');
+    pill.id = 'pill-'+z.key;
+    pill.innerHTML = `<div class="legend-dot" style="background:${z.color}"></div>${z.label}`;
+    pill.onclick = () => toggleZone(z.key);
+    pill.onmouseenter = () => document.querySelector(`[data-zone="${z.key}"]`)?.classList.add('hover-highlight');
+    pill.onmouseleave = () => document.querySelector(`[data-zone="${z.key}"]`)?.classList.remove('hover-highlight');
+    container.appendChild(pill);
+  });
+}
+
+function toggleZone(key) {
+  if (activeZones.has(key)) { activeZones.delete(key); document.querySelector(`[data-zone="${key}"]`)?.classList.remove('active'); document.getElementById('pill-'+key)?.classList.add('hidden'); }
+  else { activeZones.add(key); document.querySelector(`[data-zone="${key}"]`)?.classList.add('active'); document.getElementById('pill-'+key)?.classList.remove('hidden'); }
+  updateChartVisibility();
+}
+
+function updateChartVisibility() {
+  if (!contornosChart) return;
+  contornosChart.data.datasets.forEach((ds,i) => { if(i<ZONES.length) ds.hidden = !activeZones.has(ZONES[i].key); });
+  contornosChart.update('none');
+}
+
+function resetContornosHover() {
+  if (!contornosChart) return;
+  contornosChart.data.datasets.forEach((ds,i) => { if(!ds.hidden&&i<ZONES.length){ds.borderWidth=2;ds.borderColor=ZONES[i].color;ds.pointRadius=3;ds.pointBackgroundColor=ZONES[i].color;} });
+  ZONES.forEach(z => document.querySelector(`[data-zone="${z.key}"]`)?.classList.remove('hover-highlight'));
+  contornosChart.update('none');
+}
+
+function renderContornosChart() {
+  const nC = chartFilters.contornos;
+  const allFilled = contornosData.filter(r => ZONES.some(z => r[z.field]!=null));
+  const filled = nC>0 ? allFilled.slice(-nC) : allFilled;
+  const labels = filled.map(r => 'S'+r.semana);
+  const datasets = ZONES.map(z => ({
+    label:z.label, data:filled.map(r => r[z.field]!=null?+r[z.field]:null),
+    borderColor:z.color, backgroundColor:z.color+'22', borderWidth:2,
+    pointRadius:3, pointHoverRadius:7, pointBackgroundColor:z.color, tension:0.4, spanGaps:true, hidden:!activeZones.has(z.key)
+  }));
+  const ctx = document.getElementById('contornos-chart');
+  if (!ctx) return;
+  if (contornosChart) contornosChart.destroy();
+  const canvasEl = ctx;
+  canvasEl.onmouseleave = () => resetContornosHover();
+  contornosChart = new Chart(ctx.getContext('2d'), {
+    type:'line', data:{labels, datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#181c22',borderColor:'#2e3540',borderWidth:1,titleColor:'#e8ecf0',bodyColor:'#6b7585',titleFont:{family:'DM Mono',size:11},bodyFont:{family:'DM Mono',size:11},padding:10,
+          callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y!=null?ctx.parsed.y.toFixed(1)+' cm':'—'}`}}
+      },
+      scales:{
+        x:{grid:{color:'#222830'},ticks:{color:'#6b7585',font:{family:'DM Mono',size:10}}},
+        y:{grid:{color:'#222830'},ticks:{color:'#6b7585',font:{family:'DM Mono',size:10},callback:v=>v+' cm'}}
+      }
+    }
+  });
+  canvasEl.addEventListener('mousemove', e => {
+    if (!contornosChart) return;
+    const pts = contornosChart.getElementsAtEventForMode(e,'nearest',{intersect:false},false);
+    if (!pts.length) return;
+    const idx = pts[0].datasetIndex;
+    if (idx>=ZONES.length) return;
+    contornosChart.data.datasets.forEach((ds,i) => {
+      if(i>=ZONES.length) return;
+      if(i===idx){ds.borderWidth=4;ds.borderColor=ZONES[i].color;ds.pointRadius=5;ds.pointBackgroundColor=ZONES[i].color;}
+      else{ds.borderWidth=1.5;ds.borderColor=ZONES[i].color+'55';ds.pointRadius=2;ds.pointBackgroundColor=ZONES[i].color+'55';}
+    });
+    ZONES.forEach((z,i)=>{ const el=document.querySelector(`[data-zone="${z.key}"]`); if(el) i===idx?el.classList.add('hover-highlight'):el.classList.remove('hover-highlight'); });
+    contornosChart.update('none');
+  });
+  canvasEl.addEventListener('mouseleave', () => resetContornosHover());
+}
+
+function renderContornosHistorial() {
+  const cont = document.getElementById('contornos-historial');
+  const rows = [...contornosData].reverse().slice(0,12);
+  if (!rows.length) { cont.innerHTML = '<div class="empty-state"><span>📏</span><p>Sin medidas aún.</p></div>'; return; }
+  let html = `<div class="table-wrap"><table><thead><tr><th>Sem.</th><th>Peso</th>${ZONES.map(z=>`<th style="color:${z.color}">${z.label}</th>`).join('')}</tr></thead><tbody>`;
+  rows.forEach(r => {
+    html += `<tr><td style="font-family:'DM Mono',monospace;font-weight:600;color:var(--accent)">S${r.semana}</td>
+      <td style="color:var(--weight)">${r.peso!=null?(+r.peso).toFixed(1):'—'}</td>
+      ${ZONES.map(z=>`<td style="color:${z.color}">${r[z.field]!=null?(+r[z.field]).toFixed(1):'—'}</td>`).join('')}</tr>`;
+  });
+  html += '</tbody></table></div>';
+  cont.innerHTML = html;
+}
+
+async function guardarContornos() {
+  try {
+    const now = new Date(), start = new Date(2026,3,27);
+    const semana = Math.max(1, Math.floor((now-start)/(7*24*3600*1000))+1);
+    const fecha = todayISO();
+    const row = { user_id:uid(), semana, fecha };
+    ZONES.forEach(z => { row[z.field] = parseNum(document.getElementById(`c-${z.key}`).value); });
+    row.kcal  = parseNum(document.getElementById('c-kcal').value);
+    row.fotos = document.getElementById('c-fotos').value || null;
+
+    // Get current week's average peso from registros
+    const pesosThisWeek = registrosData.filter(r => {
+      const d = new Date(r.fecha);
+      const s = new Date(2026,3,27);
+      const w = Math.max(1, Math.floor((d-s)/(7*24*3600*1000))+1);
+      return w === semana && r.peso != null;
+    });
+    if (pesosThisWeek.length) {
+      row.peso = Math.round(pesosThisWeek.reduce((a,b)=>a+(+b.peso),0)/pesosThisWeek.length*10)/10;
+    }
+
+    const { error } = await sb.from('contornos').upsert(row, { onConflict:'user_id,semana' });
+    if (error) throw error;
+    toast('¡Contornos guardados! ✓', 'ok');
+    await loadContornos();
+  } catch(e) { toast('Error: '+e.message, 'err'); }
+}
+
+// ── ENTRENAMIENTO ─────────────────────────────────────────────────────────────
+const DIAS_EJ = {
+  "Día 1 · Pierna Fuerza": ["Sentadilla en Multipower","Prensa de piernas","Peso muerto rumano (barra)","Hip thrust (máquina)","Curl femoral tumbado","Gemelo de pie"],
+  "Día 2 · Empuje": ["Press convergente (máquina)","Press inclinado mancuernas","Cruces en polea baja (low-to-high)","Pec deck (abrazo)","Press militar máquina convergente","JM press","Extensión tríceps polea alta barra V"],
+  "Día 3 · Tirón": ["Jalón en polea agarre neutro medio","Remo en banco inclinado (barra)","Remo Dorian unilateral en máquina","Pullover en polea","Pec deck inverso (máquina)","Curl con barra (técnica estricta)","Curl Bayesian unilateral polea baja"],
+  "Día 4 · Pierna Hipertrofia": ["Hack Squat","Sentadilla búlgara (mancuernas)","Extensiones de cuádriceps","RDL con mancuernas","Curl femoral de pie unilateral","Gemelo sentado (sóleo)"],
+  "Día 5 · Brazos + Hombro": ["Elevaciones laterales máquina","Elevaciones laterales polea unilateral","Elevaciones laterales mancuerna en banco inclinado","Curl araña en banco inclinado","Press francés mancuerna","Curl martillo mancuernas","Extensión tríceps unilateral polea alta agarre neutro","Pájaros polea baja cruzada","Encogimientos mancuernas"],
+};
+
+function populateExerciseSelectors() {
+  const sel = document.getElementById('tr-ejercicio-grafico');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Selecciona ejercicio —</option>';
+  Object.values(DIAS_EJ).flat().forEach(ej => {
+    const opt = document.createElement('option'); opt.value=ej; opt.textContent=ej; sel.appendChild(opt);
+  });
+}
+
+function onDiaChange() {
+  const dia = document.getElementById('tr-dia').value;
+  const sel = document.getElementById('tr-ejercicio-sel');
+  sel.innerHTML = '<option value="">— Selecciona ejercicio —</option>';
+  if (!dia) return;
+  (DIAS_EJ[dia]||[]).forEach(ej => { const opt=document.createElement('option');opt.value=ej;opt.textContent=ej;sel.appendChild(opt); });
+}
+
+async function guardarEjercicio() {
+  const dia = document.getElementById('tr-dia').value;
+  const ej  = document.getElementById('tr-ejercicio-sel').value;
+  if (!dia) { toast('Selecciona un día', 'err'); return; }
+  if (!ej)  { toast('Selecciona un ejercicio', 'err'); return; }
+  const peso = parseNum(document.getElementById('tr-peso').value);
+  const reps = parseNum(document.getElementById('tr-reps').value);
+  if (peso==null && reps==null) { toast('Introduce peso o repeticiones', 'err'); return; }
+  const now=new Date(), start=new Date(2026,3,27);
+  const semana = Math.max(1,Math.floor((now-start)/(7*24*3600*1000))+1);
+  const { error } = await sb.from('entrenamiento').insert({
+    user_id:uid(), fecha:todayISO(), semana, dia, ejercicio:ej, peso, reps
+  });
+  if (error) { toast('Error: '+error.message, 'err'); return; }
+  toast(`${ej} guardado ✓`, 'ok');
+  document.getElementById('tr-peso').value='';
+  document.getElementById('tr-reps').value='';
+  await loadTraining();
+}
+
+async function loadTraining() {
+  const { data } = await sb.from('entrenamiento').select('*').eq('user_id',uid()).order('fecha',{ascending:true}).order('id',{ascending:true});
+  trainingData = data || [];
+  renderTrainingHistorial();
+  renderTrainingChart();
+}
+
+function renderTrainingChart() {
+  const ejercicio = document.getElementById('tr-ejercicio-grafico')?.value;
+  const ctx = document.getElementById('training-chart');
+  if (!ctx) return;
+  if (trainingChart) { trainingChart.destroy(); trainingChart=null; }
+  if (!ejercicio) return;
+  const rows = trainingData.filter(r => r.ejercicio===ejercicio && r.peso!=null);
+  if (!rows.length) return;
+  const labels = rows.map(r=>r.fecha);
+  const pesoVals = rows.map(r=>+r.peso);
+  const repsVals = rows.map(r=>r.reps!=null?+r.reps:null);
+  const avg = Math.round(pesoVals.reduce((a,b)=>a+b,0)/pesoVals.length*10)/10;
+  trainingChart = new Chart(ctx.getContext('2d'), {
+    type:'line', data:{labels, datasets:[
+      {label:'Peso (kg)',data:pesoVals,borderColor:'#ff6b35',backgroundColor:'rgba(255,107,53,0.08)',borderWidth:2.5,pointRadius:5,pointHoverRadius:8,pointBackgroundColor:'#ff6b35',tension:0.3,fill:true,yAxisID:'y'},
+      {label:'Reps',data:repsVals,borderColor:'#5b8fff',backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,3],pointRadius:3,pointHoverRadius:6,pointBackgroundColor:'#5b8fff',tension:0.3,fill:false,yAxisID:'y2'},
+      {label:'Media',data:Array(pesoVals.length).fill(avg),borderColor:'rgba(255,107,53,0.4)',borderWidth:1.5,borderDash:[8,4],pointRadius:0,fill:false,tension:0,yAxisID:'y'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,labels:{color:'#6b7585',font:{family:'DM Mono',size:10},boxWidth:10}},
+        tooltip:{backgroundColor:'#181c22',borderColor:'#2e3540',borderWidth:1,titleColor:'#e8ecf0',bodyFont:{family:'DM Mono',size:11},padding:10}},
+      scales:{
+        x:{grid:{color:'#222830'},ticks:{color:'#6b7585',font:{family:'DM Mono',size:10},maxTicksLimit:12}},
+        y:{grid:{color:'#222830'},ticks:{color:'#ff6b35',font:{family:'DM Mono',size:10},callback:v=>v+' kg'},position:'left'},
+        y2:{grid:{drawOnChartArea:false},ticks:{color:'#5b8fff',font:{family:'DM Mono',size:10},callback:v=>v+' reps'},position:'right'}
+      }}
+  });
+}
+
+function renderTrainingHistorial() {
+  const cont = document.getElementById('training-historial');
+  if (!trainingData.length) { cont.innerHTML='<div class="empty-state"><span>🏋️</span><p>Sin sesiones aún.</p></div>'; return; }
+  const byKey = {};
+  [...trainingData].reverse().slice(0,80).forEach(r => {
+    const key = r.fecha+'|'+r.dia;
+    if (!byKey[key]) byKey[key]={fecha:r.fecha,semana:r.semana,dia:r.dia,ejercicios:[]};
+    byKey[key].ejercicios.push({nombre:r.ejercicio,peso:r.peso,reps:r.reps});
+  });
+  let html='';
+  Object.values(byKey).slice(0,20).forEach(s=>{
+    html+=`<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px">${s.dia||'—'}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${s.fecha} · Sem.${s.semana}</span>
+      </div><div style="display:flex;flex-direction:column;gap:5px">`;
+    s.ejercicios.forEach(ej=>{
+      html+=`<div style="display:flex;justify-content:space-between;padding:5px 9px;background:var(--surface);border-radius:6px">
+        <span style="font-size:12px">${ej.nombre}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:12px;color:#ff6b35">${ej.peso!=null?ej.peso+' kg':'—'}${ej.reps!=null?' × '+ej.reps:''}</span>
+      </div>`;
+    });
+    html+='</div></div>';
+  });
+  cont.innerHTML=html;
+}
+
+// ── RESUMEN SEMANAL ───────────────────────────────────────────────────────────
+async function loadResumen() {
+  const cont = document.getElementById('resumen-content');
+  // Get weekly averages from registros
+  const weekMap = {};
+  registrosData.forEach(r => {
+    const d=new Date(r.fecha), s=new Date(2026,3,27);
+    const w=Math.max(1,Math.floor((d-s)/(7*24*3600*1000))+1);
+    if (!weekMap[w]) weekMap[w]={pesos:[],suenos:[],entrenos:[]};
+    if (r.peso!=null) weekMap[w].pesos.push(+r.peso);
+    if (r.sueno!=null) weekMap[w].suenos.push(+r.sueno);
+    if (r.entreno&&r.entreno!=='Descanso'&&r.entreno!=='') weekMap[w].entrenos.push(r.entreno);
+  });
+  const weeks = Object.keys(weekMap).sort((a,b)=>+a-+b);
+  if (!weeks.length) { cont.innerHTML='<div class="empty-state"><span>📊</span><p>Sin semanas registradas aún.</p></div>'; return; }
+  let html=`<div class="table-wrap"><table><thead><tr>
+    <th>Semana</th><th style="color:var(--weight)">Peso medio</th><th style="color:var(--sleep)">Sueño medio</th><th style="color:var(--train)">Días entreno</th>
+  </tr></thead><tbody>`;
+  weeks.forEach(w=>{
+    const d=weekMap[w];
+    const pesoAvg=d.pesos.length?( d.pesos.reduce((a,b)=>a+b,0)/d.pesos.length).toFixed(1):'—';
+    const suenoAvg=d.suenos.length?(d.suenos.reduce((a,b)=>a+b,0)/d.suenos.length).toFixed(1):'—';
+    html+=`<tr>
+      <td style="font-family:'DM Mono',monospace;font-weight:600;color:var(--accent)">Sem. ${w}</td>
+      <td style="color:var(--weight);font-weight:600">${pesoAvg!=='—'?pesoAvg+' kg':'—'}</td>
+      <td style="color:var(--sleep)">${suenoAvg!=='—'?suenoAvg+'h':'—'}</td>
+      <td style="color:var(--train)">${d.entrenos.length} días</td>
+    </tr>`;
+  });
+  html+='</tbody></table></div>';
+  cont.innerHTML=html;
+}
+
+// ── PERFIL & TMB ──────────────────────────────────────────────────────────────
+async function loadPerfil() {
+  const { data } = await sb.from('perfil').select('*').eq('user_id',uid()).single();
+  if (!data) return;
+  perfilData = data;
+  if (data.nombre) document.getElementById('p-nombre').value=data.nombre;
+  if (data.sexo)   document.getElementById('p-sexo').value=data.sexo;
+  if (data.fecha_nacimiento) document.getElementById('p-fecha').value=data.fecha_nacimiento;
+  if (data.altura) document.getElementById('p-altura').value=data.altura;
+  if (data.nivel_actividad) {
+    const sel=document.getElementById('p-actividad');
+    for(let o of sel.options) if(Math.abs(parseFloat(o.value)-data.nivel_actividad)<0.01){o.selected=true;break;}
+  }
+  calcTMB();
+  calcBodyFat();
+}
+
+function calcTMB() {
+  const sexo=document.getElementById('p-sexo').value;
+  const fechaV=document.getElementById('p-fecha').value;
+  const altura=parseFloat(document.getElementById('p-altura').value)||0;
+  const pesoVals=registrosData.filter(r=>r.peso!=null).map(r=>+r.peso);
+  const peso=pesoVals.length?(pesoVals.reduce((a,b)=>a+b,0)/pesoVals.length):0;
+  const factor=parseFloat(document.getElementById('p-actividad').value)||1.375;
+  if(!altura||!peso||!fechaV){['tmb-val','tdee-val','deficit-val','mant-val','super-val'].forEach(id=>document.getElementById(id).textContent='—');return;}
+  const edad=Math.floor((new Date()-new Date(fechaV))/(365.25*24*3600*1000));
+  const tmb=sexo==='H'?10*peso+6.25*altura-5*edad+5:10*peso+6.25*altura-5*edad-161;
+  const tdee=tmb*factor;
+  document.getElementById('tmb-val').textContent=Math.round(tmb);
+  document.getElementById('tdee-val').textContent=Math.round(tdee);
+  document.getElementById('deficit-val').textContent=Math.round(tdee-250);
+  document.getElementById('mant-val').textContent=Math.round(tdee);
+  document.getElementById('super-val').textContent=Math.round(tdee+250);
+}
+
+async function guardarPerfil() {
+  const nombre=document.getElementById('p-nombre').value;
+  const sexo=document.getElementById('p-sexo').value;
+  const fecha=document.getElementById('p-fecha').value;
+  const altura=parseNum(document.getElementById('p-altura').value);
+  const nivel=parseFloat(document.getElementById('p-actividad').value);
+  const { error } = await sb.from('perfil').upsert({
+    user_id:uid(), nombre, sexo, fecha_nacimiento:fecha||null, altura, nivel_actividad:nivel
+  },{onConflict:'user_id'});
+  if (error) { toast('Error: '+error.message,'err'); return; }
+  toast('¡Perfil guardado! ✓','ok'); calcTMB();
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
+    if(tab.dataset.tab==='historial') setTimeout(()=>{if(pesoChart)pesoChart.resize();if(suenoChart)suenoChart.resize();},50);
+    if(tab.dataset.tab==='contornos') setTimeout(()=>{if(contornosChart)contornosChart.resize();},50);
+    if(tab.dataset.tab==='entrenamiento') setTimeout(()=>{if(trainingChart)trainingChart.resize();},50);
+  });
+});
+document.getElementById('p-sexo').addEventListener('change',calcTMB);
+document.getElementById('p-fecha').addEventListener('change',calcTMB);
+document.getElementById('p-altura').addEventListener('input',()=>{calcTMB();calcBodyFat();});
+
+let toastTimer;
+function toast(msg,type='ok'){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='show '+type;
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.className='',3500);
+}
+</script>
+</body>
+</html>
