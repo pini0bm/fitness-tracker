@@ -209,6 +209,7 @@ tbody td{padding:9px 12px;color:var(--text);white-space:nowrap}
     <button class="tab" data-tab="historial">Historial</button>
     <button class="tab" data-tab="contornos">Contornos</button>
     <button class="tab" data-tab="entrenamiento">Entrenamiento</button>
+    <button class="tab" data-tab="mis-ejercicios">Mis ejercicios</button>
     <button class="tab" data-tab="resumen">Resumen semanal</button>
     <button class="tab" data-tab="perfil">Perfil & TMB</button>
   </nav>
@@ -382,6 +383,32 @@ tbody td{padding:9px 12px;color:var(--text);white-space:nowrap}
         <div id="training-historial" style="max-height:380px;overflow-y:auto;padding:0 22px 22px">
           <div class="loading-state"><div class="spinner"></div> Cargando...</div>
         </div>
+      </div>
+    </div>
+
+    <!-- MIS EJERCICIOS -->
+    <div class="section" id="tab-mis-ejercicios">
+      <div class="section-title">Mis ejercicios</div>
+      <div class="section-sub">Añade y gestiona tu rutina personal</div>
+      <div class="card">
+        <div class="card-title">Añadir ejercicio</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Día</label>
+            <select id="ej-dia-nuevo">
+              <option value="">— Selecciona día —</option>
+              <option>Día 1</option><option>Día 2</option><option>Día 3</option>
+              <option>Día 4</option><option>Día 5</option><option>Día 6</option><option>Día 7</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Nombre del ejercicio</label>
+            <input type="text" id="ej-nombre-nuevo" placeholder="Ej: Sentadilla en Multipower">
+          </div>
+        </div>
+        <button class="btn-primary" onclick="addEjercicio()">Añadir ejercicio</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Tu rutina</div>
+        <div id="mis-ejercicios-list"><div class="loading-state"><div class="spinner"></div> Cargando...</div></div>
       </div>
     </div>
 
@@ -882,6 +909,76 @@ function populateExerciseSelectors() {
   Object.values(DIAS_EJ).flat().forEach(ej => {
     const opt = document.createElement('option'); opt.value=ej; opt.textContent=ej; sel.appendChild(opt);
   });
+}
+
+async function loadEjercicios() {
+  const { data } = await sb.from('ejercicios').select('*').eq('user_id', uid()).order('dia').order('orden').order('created_at');
+  ejerciciosCache = data || [];
+  const diasDisponibles = [...new Set(ejerciciosCache.map(e => e.dia))].sort();
+  const trDia = document.getElementById('tr-dia');
+  if (trDia && diasDisponibles.length) {
+    const prev = trDia.value;
+    trDia.innerHTML = '<option value="">— Selecciona día —</option>';
+    diasDisponibles.forEach(d => { const opt=document.createElement('option'); opt.value=d; opt.textContent=d; trDia.appendChild(opt); });
+    if (prev) trDia.value = prev;
+  }
+  renderMisEjercicios();
+  const grafSel = document.getElementById('tr-ejercicio-grafico');
+  if (grafSel) {
+    const prev = grafSel.value;
+    grafSel.innerHTML = '<option value="">— Selecciona ejercicio —</option>';
+    const allEj = ejerciciosCache.length ? [...new Set(ejerciciosCache.map(e=>e.nombre))] : [...new Set(Object.values(DIAS_EJERCICIOS).flat())];
+    allEj.forEach(ej => { const opt=document.createElement('option'); opt.value=ej; opt.textContent=ej; grafSel.appendChild(opt); });
+    if (prev) grafSel.value = prev;
+  }
+}
+
+async function addEjercicio() {
+  const dia    = document.getElementById('ej-dia-nuevo').value;
+  const nombre = document.getElementById('ej-nombre-nuevo').value.trim();
+  if (!dia)    { toast('Selecciona un día', 'err'); return; }
+  if (!nombre) { toast('Escribe el nombre del ejercicio', 'err'); return; }
+  const { error } = await sb.from('ejercicios').insert({ user_id: uid(), dia, nombre });
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  document.getElementById('ej-nombre-nuevo').value = '';
+  toast('Ejercicio añadido ✓', 'ok');
+  await loadEjercicios();
+}
+
+async function deleteEjercicio(id, nombre) {
+  if (!confirm('¿Eliminar "' + nombre + '"?')) return;
+  const { error } = await sb.from('ejercicios').delete().eq('id', id);
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  toast('Ejercicio eliminado', 'ok');
+  await loadEjercicios();
+}
+
+function renderMisEjercicios() {
+  const cont = document.getElementById('mis-ejercicios-list');
+  if (!cont) return;
+  if (!ejerciciosCache.length) {
+    cont.innerHTML = '<div class="empty-state"><span>🏋️</span><p>Aún no has añadido ejercicios.<br>Usa el formulario de arriba para crear tu rutina.</p></div>';
+    return;
+  }
+  const byDia = {};
+  ejerciciosCache.forEach(e => { if (!byDia[e.dia]) byDia[e.dia]=[]; byDia[e.dia].push(e); });
+  const colors = ['#E91E63','#9C27B0','#3F51B5','#00897B','#E65100','#F57F17','#0277BD'];
+  let html = '';
+  Object.entries(byDia).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([dia, ejs], idx) => {
+    const color = colors[idx % colors.length];
+    html += `<div style="margin-bottom:20px">
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:${color};margin-bottom:10px;padding:6px 0;border-bottom:1px solid var(--border)">${dia}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">`;
+    ejs.forEach(e => {
+      const safeName = e.nombre.replace(/'/g, "\'").replace(/"/g, '&quot;');
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <span style="font-size:13px">${e.nombre}</span>
+        <button onclick="deleteEjercicio('${e.id}','${safeName}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:0 4px;line-height:1;transition:color .2s" onmouseover="this.style.color='var(--warn)'" onmouseout="this.style.color='var(--muted)'">×</button>
+      </div>`;
+    });
+    html += '</div></div>';
+  });
+  cont.innerHTML = html;
 }
 
 function onDiaChange() {
