@@ -576,7 +576,8 @@ function uid() { return currentUser?.id; }
 
 // ── LOAD ALL ──────────────────────────────────────────────────────────────────
 async function loadAll() {
-  await Promise.all([loadRegistros(), loadContornos(), loadTraining(), loadPerfil(), loadResumen()]);
+  await Promise.all([loadRegistros(), loadContornos(), loadPerfil(), loadResumen()]);
+  await loadEjercicios();
 }
 
 // ── REGISTRO DIARIO ───────────────────────────────────────────────────────────
