@@ -352,11 +352,6 @@ tbody td{padding:9px 12px;color:var(--text);white-space:nowrap}
             <label>Día</label>
             <select id="tr-dia" onchange="onDiaChange()">
               <option value="">— Selecciona día —</option>
-              <option>Día 1 · Pierna Fuerza</option>
-              <option>Día 2 · Empuje</option>
-              <option>Día 3 · Tirón</option>
-              <option>Día 4 · Pierna Hipertrofia</option>
-              <option>Día 5 · Brazos + Hombro</option>
             </select>
           </div>
           <div class="form-group">
@@ -917,11 +912,11 @@ async function loadEjercicios() {
   ejerciciosCache = data || [];
   const diasDisponibles = [...new Set(ejerciciosCache.map(e => e.dia))].sort();
   const trDia = document.getElementById('tr-dia');
-  if (trDia && diasDisponibles.length) {
+  if (trDia) {
     const prev = trDia.value;
     trDia.innerHTML = '<option value="">— Selecciona día —</option>';
     diasDisponibles.forEach(d => { const opt=document.createElement('option'); opt.value=d; opt.textContent=d; trDia.appendChild(opt); });
-    if (prev) trDia.value = prev;
+    if (prev && diasDisponibles.includes(prev)) trDia.value = prev;
   }
   renderMisEjercicios();
   const grafSel = document.getElementById('tr-ejercicio-grafico');
@@ -987,7 +982,7 @@ function onDiaChange() {
   const sel = document.getElementById('tr-ejercicio-sel');
   sel.innerHTML = '<option value="">— Selecciona ejercicio —</option>';
   if (!dia) return;
-  (DIAS_EJ[dia]||[]).forEach(ej => { const opt=document.createElement('option');opt.value=ej;opt.textContent=ej;sel.appendChild(opt); });
+  ejerciciosCache.filter(e => e.dia === dia).forEach(e => { const opt=document.createElement('option');opt.value=e.nombre;opt.textContent=e.nombre;sel.appendChild(opt); });
 }
 
 async function guardarEjercicio() {
