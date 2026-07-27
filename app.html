@@ -280,7 +280,9 @@ tbody td{padding:9px 12px;color:var(--text);white-space:nowrap}
       <div class="card">
         <div class="card-title">Evolución de contornos</div>
         <div class="chart-filters" id="filters-contornos">
-          <button class="chart-filter-btn active" onclick="setFilter('contornos',12,this)">12 sem.</button>
+          <button class="chart-filter-btn active" onclick="setFilter('contornos',4,this)">4 sem.</button>
+          <button class="chart-filter-btn" onclick="setFilter('contornos',8,this)">8 sem.</button>
+          <button class="chart-filter-btn" onclick="setFilter('contornos',12,this)">12 sem.</button>
           <button class="chart-filter-btn" onclick="setFilter('contornos',24,this)">24 sem.</button>
           <button class="chart-filter-btn" onclick="setFilter('contornos',0,this)">Todo</button>
         </div>
@@ -333,6 +335,14 @@ tbody td{padding:9px 12px;color:var(--text);white-space:nowrap}
         </div>
         <button class="btn-primary" onclick="guardarContornos()">Guardar contornos</button>
       </div>
+      <div class="card">
+        <div class="card-title">Comparativa entre semanas</div>
+        <div class="form-grid" style="margin-bottom:16px">
+          <div class="form-group"><label>Semana A</label><select id="comp-sem-a" onchange="renderComparativa()"><option value="">— Selecciona —</option></select></div>
+          <div class="form-group"><label>Semana B</label><select id="comp-sem-b" onchange="renderComparativa()"><option value="">— Selecciona —</option></select></div>
+        </div>
+        <div id="comp-result"></div>
+      </div>
       <div class="card" style="padding:0">
         <div style="padding:22px 22px 8px"><div class="card-title" style="margin-bottom:0">Historial de contornos</div></div>
         <div id="contornos-historial" style="max-height:340px;overflow-y:auto;padding:0 22px 22px">
@@ -360,6 +370,7 @@ tbody td{padding:9px 12px;color:var(--text);white-space:nowrap}
           </div>
           <div class="form-group"><label>Peso (kg)</label><input class="ejercicio-input" style="border-radius:var(--radius-sm);padding:10px 12px" type="number" id="tr-peso" placeholder="—" step="0.5" min="0"></div>
           <div class="form-group"><label>Repeticiones</label><input class="ejercicio-input" style="border-radius:var(--radius-sm);padding:10px 12px" type="number" id="tr-reps" placeholder="—" step="1" min="0"></div>
+          <div class="form-group"><label>Notas de la serie</label><input type="text" id="tr-notas" placeholder="Ej: subí carga, buena técnica..."></div>
         </div>
         <button class="btn-primary" onclick="guardarEjercicio()">Guardar ejercicio</button>
       </div>
@@ -476,6 +487,16 @@ tbody td{padding:9px 12px;color:var(--text);white-space:nowrap}
               </div>
             </div>
           </div>
+          <div class="card" style="margin-bottom:0">
+            <div class="card-title">IMC</div>
+            <div style="display:flex;align-items:center;gap:16px">
+              <div id="imc-val" style="font-family:'Syne',sans-serif;font-weight:800;font-size:2rem;color:var(--accent)">—</div>
+              <div>
+                <div id="imc-badge" style="font-size:12px;font-weight:600;margin-bottom:4px">—</div>
+                <div style="font-size:10px;color:var(--muted)">&lt;18.5 bajo · 18.5–24.9 normal · 25–29.9 sobrepeso · ≥30 obesidad</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -483,6 +504,21 @@ tbody td{padding:9px 12px;color:var(--text);white-space:nowrap}
   </main>
 </div>
 <div id="toast"></div>
+
+<!-- EDIT MODAL -->
+<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center;padding:24px">
+  <div style="background:var(--card);border:1px solid var(--border2);border-radius:20px;padding:32px;width:100%;max-width:440px;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span id="modal-title" style="font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem">Editar registro</span>
+      <button onclick="closeModal()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:22px;line-height:1">×</button>
+    </div>
+    <div id="modal-body" style="display:flex;flex-direction:column;gap:12px"></div>
+    <div style="display:flex;gap:12px;margin-top:4px">
+      <button onclick="saveModal()" style="flex:1;background:linear-gradient(135deg,var(--accent),#4a7aee);color:#fff;border:none;border-radius:var(--radius);padding:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer">Guardar</button>
+      <button onclick="closeModal()" style="flex:1;background:none;border:1px solid var(--border2);color:var(--muted);border-radius:var(--radius);padding:12px;font-family:'Syne',sans-serif;font-weight:600;font-size:14px;cursor:pointer">Cancelar</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
@@ -633,7 +669,7 @@ function renderHistorial() {
 
 // ── CHARTS ────────────────────────────────────────────────────────────────────
 let pesoChart=null, suenoChart=null, contornosChart=null, trainingChart=null;
-const chartFilters = { peso:30, sueno:30, contornos:12 };
+const chartFilters = { peso:30, sueno:30, contornos:4 };
 
 function setFilter(chart, n, btn) {
   chartFilters[chart] = n;
@@ -715,6 +751,7 @@ async function loadContornos() {
   buildLegendPills();
   renderContornosChart();
   renderContornosHistorial();
+  updateComparativaSelectors();
 
   // Load current week
   const now = new Date(), start = new Date(2026,3,27);
@@ -847,11 +884,74 @@ function renderContornosChart() {
   canvasEl.addEventListener('mouseleave', () => resetContornosHover());
 }
 
+function updateComparativaSelectors() {
+  const semA = document.getElementById('comp-sem-a');
+  const semB = document.getElementById('comp-sem-b');
+  if (!semA || !semB) return;
+  const prevA = semA.value, prevB = semB.value;
+  [semA, semB].forEach(sel => {
+    sel.innerHTML = '<option value="">— Selecciona —</option>';
+    contornosCache.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.semana; opt.textContent = 'Semana ' + r.semana;
+      sel.appendChild(opt);
+    });
+  });
+  if (prevA) semA.value = prevA;
+  if (prevB) semB.value = prevB;
+}
+
+function renderComparativa() {
+  const semA = parseInt(document.getElementById('comp-sem-a')?.value);
+  const semB = parseInt(document.getElementById('comp-sem-b')?.value);
+  const cont = document.getElementById('comp-result');
+  if (!cont || !semA || !semB || semA===semB) { if(cont) cont.innerHTML=''; return; }
+  const rowA = contornosCache.find(r => r.semana===semA);
+  const rowB = contornosCache.find(r => r.semana===semB);
+  if (!rowA || !rowB) return;
+
+  const ZONES_LIST = [
+    {key:'cuello',label:'Cuello'},{key:'hombro',label:'Hombro'},{key:'pecho',label:'Pecho'},
+    {key:'biceps',label:'Bíceps'},{key:'cintura',label:'Cintura'},{key:'abdomen',label:'Abdomen'},
+    {key:'gluteo',label:'Glúteo'},{key:'muslo',label:'Muslo'},{key:'gemelo',label:'Gemelo'}
+  ];
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:4px">`;
+  ZONES_LIST.forEach(z => {
+    const vA = rowA[z.key], vB = rowB[z.key];
+    if (vA==null && vB==null) return;
+    const diff = vA!=null && vB!=null ? (+vB - +vA).toFixed(1) : null;
+    const color = diff==null ? 'var(--muted)' : +diff < 0 ? 'var(--accent2)' : +diff > 0 ? 'var(--warn)' : 'var(--muted)';
+    const arrow = diff==null ? '' : +diff < 0 ? '↓' : +diff > 0 ? '↑' : '=';
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);text-transform:uppercase;margin-bottom:6px">${z.label}</div>
+      <div style="font-size:12px;color:var(--muted)">S${semA}: ${vA!=null?(+vA).toFixed(1):'—'}</div>
+      <div style="font-size:12px;color:var(--muted)">S${semB}: ${vB!=null?(+vB).toFixed(1):'—'}</div>
+      ${diff!=null?`<div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;color:${color};margin-top:4px">${arrow} ${Math.abs(+diff)} cm</div>`:''}
+    </div>`;
+  });
+  // Weight comparison
+  const wA = rowA.peso, wB = rowB.peso;
+  if (wA!=null || wB!=null) {
+    const wDiff = wA!=null && wB!=null ? (+wB - +wA).toFixed(1) : null;
+    const wColor = wDiff==null?'var(--muted)':+wDiff<0?'var(--accent2)':+wDiff>0?'var(--warn)':'var(--muted)';
+    const wArrow = wDiff==null?'':+wDiff<0?'↓':+wDiff>0?'↑':'=';
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;text-align:center;border-top:3px solid var(--weight)">
+      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Peso</div>
+      <div style="font-size:12px;color:var(--muted)">S${semA}: ${wA!=null?(+wA).toFixed(1):'—'} kg</div>
+      <div style="font-size:12px;color:var(--muted)">S${semB}: ${wB!=null?(+wB).toFixed(1):'—'} kg</div>
+      ${wDiff!=null?`<div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;color:${wColor};margin-top:4px">${wArrow} ${Math.abs(+wDiff)} kg</div>`:''}
+    </div>`;
+  }
+  html += '</div>';
+  cont.innerHTML = html;
+}
+
 function renderContornosHistorial() {
   const cont = document.getElementById('contornos-historial');
   const rows = [...contornosData].reverse().slice(0,12);
   if (!rows.length) { cont.innerHTML = '<div class="empty-state"><span>📏</span><p>Sin medidas aún.</p></div>'; return; }
-  let html = `<div class="table-wrap"><table><thead><tr><th>Sem.</th><th>Peso</th>${ZONES.map(z=>`<th style="color:${z.color}">${z.label}</th>`).join('')}</tr></thead><tbody>`;
+  let html = `<div class="table-wrap"><table><thead><tr><th>Sem.</th><th>Peso</th>${ZONES.map(z=>`<th style="color:${z.color}">${z.label}</th>`).join('')}<th></th></tr></thead><tbody>`;
   rows.forEach(r => {
     html += `<tr><td style="font-family:'DM Mono',monospace;font-weight:600;color:var(--accent)">S${r.semana}</td>
       <td style="color:var(--weight)">${r.peso!=null?(+r.peso).toFixed(1):'—'}</td>
@@ -923,7 +1023,7 @@ async function loadEjercicios() {
   if (grafSel) {
     const prev = grafSel.value;
     grafSel.innerHTML = '<option value="">— Selecciona ejercicio —</option>';
-    const allEj = ejerciciosCache.length ? [...new Set(ejerciciosCache.map(e=>e.nombre))] : [...new Set(Object.values(DIAS_EJERCICIOS).flat())];
+    const allEj = [...new Set([...ejerciciosCache.map(e=>e.nombre), ...trainingData.map(r=>r.ejercicio)].filter(Boolean))];
     allEj.forEach(ej => { const opt=document.createElement('option'); opt.value=ej; opt.textContent=ej; grafSel.appendChild(opt); });
     if (prev) grafSel.value = prev;
   }
@@ -995,13 +1095,15 @@ async function guardarEjercicio() {
   if (peso==null && reps==null) { toast('Introduce peso o repeticiones', 'err'); return; }
   const now=new Date(), start=new Date(2026,3,27);
   const semana = Math.max(1,Math.floor((now-start)/(7*24*3600*1000))+1);
-  const { error } = await sb.from('entrenamiento').insert({
-    user_id:uid(), fecha:todayISO(), semana, dia, ejercicio:ej, peso, reps
-  });
+  const notas = document.getElementById('tr-notas')?.value || null;
+  const { error } = await sb.from('entrenamiento').upsert({
+    user_id:uid(), fecha:todayISO(), semana, dia, ejercicio:ej, peso, reps, notas
+  }, { onConflict: 'user_id,semana,ejercicio' });
   if (error) { toast('Error: '+error.message, 'err'); return; }
   toast(`${ej} guardado ✓`, 'ok');
   document.getElementById('tr-peso').value='';
   document.getElementById('tr-reps').value='';
+  const notasEl=document.getElementById('tr-notas'); if(notasEl) notasEl.value='';
   await loadTraining();
 }
 
@@ -1013,7 +1115,18 @@ async function loadTraining() {
 }
 
 function renderTrainingChart() {
-  const ejercicio = document.getElementById('tr-ejercicio-grafico')?.value;
+  // Auto-populate grafico selector from trainingData if empty
+  const grafSel = document.getElementById('tr-ejercicio-grafico');
+  if (grafSel && grafSel.options.length <= 1 && trainingData.length) {
+    const prev = grafSel.value;
+    grafSel.innerHTML = '<option value="">— Selecciona ejercicio —</option>';
+    const ejList = [...new Set([...ejerciciosCache.map(e=>e.nombre), ...trainingData.map(r=>r.ejercicio)].filter(Boolean))];
+    ejList.forEach(ej => {
+      const opt=document.createElement('option'); opt.value=ej; opt.textContent=ej; grafSel.appendChild(opt);
+    });
+    if (prev) grafSel.value = prev;
+  }
+  const ejercicio = grafSel?.value;
   const ctx = document.getElementById('training-chart');
   if (!ctx) return;
   if (trainingChart) { trainingChart.destroy(); trainingChart=null; }
@@ -1048,7 +1161,7 @@ function renderTrainingHistorial() {
   [...trainingData].reverse().slice(0,80).forEach(r => {
     const key = r.fecha+'|'+r.dia;
     if (!byKey[key]) byKey[key]={fecha:r.fecha,semana:r.semana,dia:r.dia,ejercicios:[]};
-    byKey[key].ejercicios.push({nombre:r.ejercicio,peso:r.peso,reps:r.reps});
+    byKey[key].ejercicios.push({nombre:r.ejercicio,peso:r.peso,reps:r.reps,notas:r.notas,record:r});
   });
   let html='';
   Object.values(byKey).slice(0,20).forEach(s=>{
@@ -1060,7 +1173,10 @@ function renderTrainingHistorial() {
     s.ejercicios.forEach(ej=>{
       html+=`<div style="display:flex;justify-content:space-between;padding:5px 9px;background:var(--surface);border-radius:6px">
         <span style="font-size:12px">${ej.nombre}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:12px;color:#ff6b35">${ej.peso!=null?ej.peso+' kg':'—'}${ej.reps!=null?' × '+ej.reps:''}</span>
+        <div style="text-align:right">
+          <span style="font-family:'DM Mono',monospace;font-size:12px;color:#ff6b35">${ej.peso!=null?ej.peso+' kg':'—'}${ej.reps!=null?' × '+ej.reps:''}</span>
+          ${ej.notas?`<div style="font-size:10px;color:var(--muted);margin-top:2px">${ej.notas}</div>`:''}
+        </div>
       </div>`;
     });
     html+='</div></div>';
@@ -1147,6 +1263,77 @@ async function guardarPerfil() {
   },{onConflict:'user_id'});
   if (error) { toast('Error: '+error.message,'err'); return; }
   toast('¡Perfil guardado! ✓','ok'); calcTMB();
+}
+
+// ── EDIT MODAL ───────────────────────────────────────────────────────────────
+let modalSaveFn = null;
+
+function openModal(title, fields, saveFn) {
+  document.getElementById('modal-title').textContent = title;
+  const body = document.getElementById('modal-body');
+  body.innerHTML = fields.map(f => `
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">${f.label}</label>
+      ${f.type === 'select'
+        ? `<select id="modal-${f.id}" style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:10px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none">
+            ${f.options.map(o => `<option value="${o.value}" ${o.value==f.value?'selected':''}>${o.label}</option>`).join('')}
+           </select>`
+        : `<input id="modal-${f.id}" type="${f.type||'text'}" value="${f.value||''}" placeholder="${f.placeholder||''}" step="${f.step||'any'}"
+            style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);padding:10px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none">`
+      }
+    </div>`).join('');
+  modalSaveFn = saveFn;
+  const modal = document.getElementById('edit-modal');
+  modal.style.display = 'flex';
+}
+
+function closeModal() {
+  document.getElementById('edit-modal').style.display = 'none';
+  modalSaveFn = null;
+}
+
+async function saveModal() {
+  if (modalSaveFn) await modalSaveFn();
+}
+
+// Edit entrenamiento record
+function editEntrenamiento(record) {
+  openModal('Editar ejercicio', [
+    { id:'peso',  label:'Peso (kg)',      type:'number', value:record.peso||'',  step:'0.5', placeholder:'—' },
+    { id:'reps',  label:'Repeticiones',   type:'number', value:record.reps||'',  step:'1',   placeholder:'—' },
+    { id:'notas', label:'Notas',          type:'text',   value:record.notas||'', placeholder:'Opcional...' },
+  ], async () => {
+    const peso  = parseNum(document.getElementById('modal-peso').value);
+    const reps  = parseNum(document.getElementById('modal-reps').value);
+    const notas = document.getElementById('modal-notas').value || null;
+    const { error } = await sb.from('entrenamiento').update({ peso, reps, notas }).eq('id', record.id);
+    if (error) { toast('Error: '+error.message,'err'); return; }
+    toast('Actualizado ✓','ok');
+    closeModal();
+    await loadTraining();
+  });
+}
+
+// Edit contornos record
+function editContornos(record) {
+  const CONT_FIELDS = ['cuello','hombro','pecho','biceps','cintura','abdomen','gluteo','muslo','gemelo'];
+  const CONT_LABELS = ['Cuello','Hombro','Pecho','Bíceps','Cintura','Abdomen','Glúteo','Muslo','Gemelo'];
+  openModal(`Editar Semana ${record.semana}`, [
+    ...CONT_FIELDS.map((f,i) => ({ id:f, label:CONT_LABELS[i]+' (cm)', type:'number', value:record[f]||'', step:'0.1', placeholder:'—' })),
+    { id:'peso',  label:'Peso (kg)',    type:'number', value:record.peso||'',  step:'0.1', placeholder:'—' },
+    { id:'kcal',  label:'Kcal semana', type:'number', value:record.kcal||'',  step:'1',   placeholder:'—' },
+    { id:'fotos', label:'Fotos (nota)', type:'text',  value:record.fotos||'', placeholder:'Álbum / carpeta...' },
+  ], async () => {
+    const updates = { peso: parseNum(document.getElementById('modal-peso').value), kcal: parseNum(document.getElementById('modal-kcal').value), fotos: document.getElementById('modal-fotos').value || null };
+    ['cuello','hombro','pecho','biceps','cintura','abdomen','gluteo','muslo','gemelo'].forEach(f => {
+      updates[f] = parseNum(document.getElementById('modal-'+f).value);
+    });
+    const { error } = await sb.from('contornos').update(updates).eq('id', record.id);
+    if (error) { toast('Error: '+error.message,'err'); return; }
+    toast('Contornos actualizados ✓','ok');
+    closeModal();
+    await loadContornos();
+  });
 }
 
 // ── UI ────────────────────────────────────────────────────────────────────────
