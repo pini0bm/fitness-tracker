@@ -1096,9 +1096,25 @@ async function guardarEjercicio() {
   const now=new Date(), start=new Date(2026,3,27);
   const semana = Math.max(1,Math.floor((now-start)/(7*24*3600*1000))+1);
   const notas = document.getElementById('tr-notas')?.value || null;
-  const { error } = await sb.from('entrenamiento').upsert({
-    user_id:uid(), fecha:todayISO(), semana, dia, ejercicio:ej, peso, reps, notas
-  }, { onConflict: 'user_id,semana,ejercicio' });
+  // Check if record already exists this week
+  const { data: existing } = await sb.from('entrenamiento')
+    .select('id')
+    .eq('user_id', uid())
+    .eq('semana', semana)
+    .eq('ejercicio', ej)
+    .single();
+
+  let error;
+  if (existing) {
+    // Update existing record
+    ({ error } = await sb.from('entrenamiento')
+      .update({ fecha:todayISO(), dia, peso, reps, notas })
+      .eq('id', existing.id));
+  } else {
+    // Insert new record
+    ({ error } = await sb.from('entrenamiento')
+      .insert({ user_id:uid(), fecha:todayISO(), semana, dia, ejercicio:ej, peso, reps, notas }));
+  }
   if (error) { toast('Error: '+error.message, 'err'); return; }
   toast(`${ej} guardado ✓`, 'ok');
   document.getElementById('tr-peso').value='';
