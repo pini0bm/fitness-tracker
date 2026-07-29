@@ -1531,18 +1531,16 @@ async function loadEjercicios() {
   } catch(e) {
     ejerciciosPorDia = DIAS_EJERCICIOS;
   }
-  // Populate chart selector — only exercises with recorded data
+  // Populate chart selector
   const sel = document.getElementById('tr-ejercicio-grafico');
   if (sel) {
-    const prev = sel.value;
     sel.innerHTML = '<option value="">— Selecciona ejercicio —</option>';
-    const withData = [...new Set(trainingData.filter(r => r[4]!=null && r[4]!=='').map(r => String(r[3]||'')).filter(Boolean))];
-    withData.forEach(ej => {
+    const allEj = [...new Set(Object.values(ejerciciosPorDia).flat())];
+    allEj.forEach(ej => {
       const opt = document.createElement('option');
       opt.value = ej; opt.textContent = ej;
       sel.appendChild(opt);
     });
-    if (prev && withData.includes(prev)) sel.value = prev;
   }
 }
 
