@@ -1531,17 +1531,6 @@ async function loadEjercicios() {
   } catch(e) {
     ejerciciosPorDia = DIAS_EJERCICIOS;
   }
-  // Populate chart selector
-  const sel = document.getElementById('tr-ejercicio-grafico');
-  if (sel) {
-    sel.innerHTML = '<option value="">— Selecciona ejercicio —</option>';
-    const allEj = [...new Set(Object.values(ejerciciosPorDia).flat())];
-    allEj.forEach(ej => {
-      const opt = document.createElement('option');
-      opt.value = ej; opt.textContent = ej;
-      sel.appendChild(opt);
-    });
-  }
 }
 
 function onDiaChange() {
@@ -1594,6 +1583,19 @@ async function loadTrainingData() {
   try {
     const data = await sheetsGet(`'${TAB_ENTRENAMIENTO}'!A4:G503`);
     trainingData = data.filter(r => r[3] && r[3] !== '');
+    // Populate chart selector with exercises that have recorded peso
+    const sel = document.getElementById('tr-ejercicio-grafico');
+    if (sel) {
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">— Selecciona ejercicio —</option>';
+      const withData = [...new Set(trainingData.filter(r => r[4]!=null && r[4]!=='').map(r => String(r[3]||'')).filter(Boolean))];
+      withData.forEach(ej => {
+        const opt = document.createElement('option');
+        opt.value = ej; opt.textContent = ej;
+        sel.appendChild(opt);
+      });
+      if (prev && withData.includes(prev)) sel.value = prev;
+    }
     renderTrainingHistorial();
     renderTrainingChart();
   } catch(e) { console.warn('loadTrainingData:', e); }
